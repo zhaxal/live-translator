@@ -1,4 +1,4 @@
 lecture_transcripts
-audio
-textfiles
-transcripts
+audio/*
+textfiles/*
+transcripts/*
