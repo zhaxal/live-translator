@@ -1,20 +1,91 @@
+import os
+import threading
+import tkinter as tk
+from tkinter import filedialog, messagebox
 from faster_whisper import WhisperModel
 
+# Setup model
 model_size = "large-v3"
+model = WhisperModel(model_size, device="cpu", compute_type="int8")
 
-# Run on GPU with FP16
-model = WhisperModel(model_size, device="auto", compute_type="int8")
+class TranscriberApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Audio Transcriber")
 
-# or run on GPU with INT8
-# model = WhisperModel(model_size, device="cuda", compute_type="int8_float16")
-# or run on CPU with INT8
-# model = WhisperModel(model_size, device="cpu", compute_type="int8")
+        self.file_list = []
+        self.transcribing = False
+        self.current_file = None
+        self.progress_var = tk.DoubleVar()
 
-segments, info = model.transcribe("audio/test.mp3", beam_size=5)
+        # UI Components
+        self.label = tk.Label(root, text="No file selected")
+        self.label.pack(pady=10)
 
-print("Detected language '%s' with probability %f" % (info.language, info.language_probability))
+        self.select_button = tk.Button(root, text="Select Files", command=self.select_files)
+        self.select_button.pack(pady=5)
 
-with open("textfiles/transcript.txt", "w") as file:
-    for segment in segments:
-        file.write("[%.2fs -> %.2fs] %s\n" % (segment.start, segment.end, segment.text))
-        print("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text)) 
+        self.progress_bar = tk.Scale(root, variable=self.progress_var, from_=0, to=100, orient="horizontal", length=300)
+        self.progress_bar.pack(pady=5)
+
+        self.transcribe_button = tk.Button(root, text="Start Transcription", command=self.start_transcription)
+        self.transcribe_button.pack(pady=5)
+
+        self.cancel_button = tk.Button(root, text="Cancel", command=self.cancel_transcription)
+        self.cancel_button.pack(pady=5)
+
+        self.skip_button = tk.Button(root, text="Skip", command=self.skip_file)
+        self.skip_button.pack(pady=5)
+
+    def select_files(self):
+        files = filedialog.askopenfilenames(filetypes=[("Audio Files", "*.mp3 *.wav")])
+        if files:
+            self.file_list = list(files)
+            self.label.config(text=f"{len(files)} files selected")
+    
+    def transcribe_file(self, filename):
+        try:
+            self.current_file = filename
+            output_filename = f"transcripts/{os.path.basename(filename)}.txt"
+
+            segments, info = model.transcribe(filename, beam_size=5)
+            with open(output_filename, "w", encoding="utf-8") as file:
+                for segment in segments:
+                    file.write("[%.2fs -> %.2fs] %s\n" % (segment.start, segment.end, segment.text))
+                    print("[%.2fs -> %.2fs] %s" % (segment.start, segment.end, segment.text))
+            print(f"Finished transcribing {filename}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error while transcribing {filename}: {e}")
+
+    def transcribe_all(self):
+        self.transcribing = True
+        for idx, file in enumerate(self.file_list):
+            if not self.transcribing:
+                break
+            self.progress_var.set((idx + 1) / len(self.file_list) * 100)
+            self.transcribe_file(file)
+        self.transcribing = False
+
+    def start_transcription(self):
+        if not self.file_list:
+            messagebox.showwarning("Warning", "No files selected for transcription!")
+            return
+        if not os.path.exists("transcripts"):
+            os.makedirs("transcripts")
+        self.transcribing = True
+        threading.Thread(target=self.transcribe_all).start()
+
+    def cancel_transcription(self):
+        self.transcribing = False
+        self.label.config(text="Transcription canceled")
+
+    def skip_file(self):
+        self.transcribing = True
+        print(f"Skipping {self.current_file}")
+        # The next file will be processed automatically
+
+# Run the application
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = TranscriberApp(root)
+    root.mainloop()
