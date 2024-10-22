@@ -6,7 +6,7 @@ from faster_whisper import WhisperModel
 
 # Setup model
 model_size = "large-v3"
-model = WhisperModel(model_size, device="cpu", compute_type="int8")
+model = WhisperModel(model_size, device="cuda", compute_type="float16")
 
 class TranscriberApp:
     def __init__(self, root):
@@ -16,17 +16,16 @@ class TranscriberApp:
         self.file_list = []
         self.transcribing = False
         self.current_file = None
-        self.progress_var = tk.DoubleVar()
 
         # UI Components
         self.label = tk.Label(root, text="No file selected")
         self.label.pack(pady=10)
 
+        self.status_label = tk.Label(root, text="Status: Idle")
+        self.status_label.pack(pady=10)
+
         self.select_button = tk.Button(root, text="Select Files", command=self.select_files)
         self.select_button.pack(pady=5)
-
-        self.progress_bar = tk.Scale(root, variable=self.progress_var, from_=0, to=100, orient="horizontal", length=300)
-        self.progress_bar.pack(pady=5)
 
         self.transcribe_button = tk.Button(root, text="Start Transcription", command=self.start_transcription)
         self.transcribe_button.pack(pady=5)
@@ -59,12 +58,15 @@ class TranscriberApp:
 
     def transcribe_all(self):
         self.transcribing = True
+        self.update_ui_state()
+        self.status_label.config(text="Status: Transcribing")
         for idx, file in enumerate(self.file_list):
             if not self.transcribing:
                 break
-            self.progress_var.set((idx + 1) / len(self.file_list) * 100)
             self.transcribe_file(file)
         self.transcribing = False
+        self.update_ui_state()
+        self.status_label.config(text="Status: Idle")
 
     def start_transcription(self):
         if not self.file_list:
@@ -78,11 +80,19 @@ class TranscriberApp:
     def cancel_transcription(self):
         self.transcribing = False
         self.label.config(text="Transcription canceled")
+        self.status_label.config(text="Status: Canceled")
+        self.update_ui_state()
 
     def skip_file(self):
         self.transcribing = True
         print(f"Skipping {self.current_file}")
         # The next file will be processed automatically
+
+    def update_ui_state(self):
+        state = tk.DISABLED if self.transcribing else tk.NORMAL
+        self.select_button.config(state=state)
+        self.transcribe_button.config(state=state)
+        self.skip_button.config(state=state)
 
 # Run the application
 if __name__ == "__main__":
