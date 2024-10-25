@@ -12,6 +12,9 @@ class TranscriberApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Audio Transcriber")
+        
+        # Set the base width and height of the window
+        self.root.geometry("600x400")  # Width x Height
 
         self.file_list = []
         self.transcribing = False
