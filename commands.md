@@ -1,1 +1,1 @@
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+ngrok http --url=colt-hip-currently.ngrok-free.app 80
