@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Audio Transcription</title>
+</head>
+<body>
+    <h1>Live Audio Transcription</h1>
+    <button id="start">Start Transcription</button>
+    <button id="stop" disabled>Stop Transcription</button>
+    <div id="transcript"></div>
+
+    <script>
+        const startButton = document.getElementById('start');
+        const stopButton = document.getElementById('stop');
+        const transcriptDiv = document.getElementById('transcript');
+        let websocket;
+        let mediaRecorder;
+
+        startButton.addEventListener('click', async () => {
+            websocket = new WebSocket("ws://" + window.location.host + "/ws");
+
+            websocket.onmessage = (event) => {
+                const transcript = document.createElement('p');
+                transcript.textContent = event.data;
+                transcriptDiv.appendChild(transcript);
+            };
+
+            websocket.onopen = async () => {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (websocket.readyState === WebSocket.OPEN) {
+                        websocket.send(e.data);
+                    }
+                };
+
+                mediaRecorder.start(1000);
+                startButton.disabled = true;
+                stopButton.disabled = false;
+            };
+        });
+
+        stopButton.addEventListener('click', () => {
+            mediaRecorder.stop();
+            websocket.close();
+
+            startButton.disabled = false;
+            stopButton.disabled = true;
+        });
+    </script>
+</body>
+</html>
