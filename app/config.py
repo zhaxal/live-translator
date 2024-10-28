@@ -3,7 +3,7 @@
 import logging
 
 LOGGING_CONFIG = {
-    "version": 1,  # Ensure version is specified
+    "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
         "colored": {
@@ -30,12 +30,12 @@ LOGGING_CONFIG = {
         "file": {
             "class": "logging.FileHandler",
             "formatter": "standard",
-            "filename": "app.log",
+            "filename": "application.log",
             "mode": "a",
         },
     },
     "loggers": {
-        "": {  # Root logger
+        "": {
             "handlers": ["console", "file"],
             "level": "INFO",
             "propagate": False,

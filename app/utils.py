@@ -6,7 +6,7 @@ from webrtcvad import Vad
 from scipy.signal import resample
 
 logger = logging.getLogger("app")
-vad = Vad(1)  # Aggressiveness mode for VAD
+vad = Vad(2)  # Aggressiveness mode for VAD
 
 def is_silent(audio_array, sample_rate=16000, frame_duration=30):
     """
@@ -50,7 +50,9 @@ async def transcribe_chunk(audio_data, model):
         segments, _ = model.transcribe(
             audio_array,
             beam_size=10,
-            no_speech_threshold=0.6
+            no_speech_threshold=0.8,
+            task="translate",
+            language="en",
         )
         transcription = " ".join([segment.text for segment in segments]) if segments else ""
         logger.info(f"Transcription result: {transcription}")
