@@ -1,196 +1,239 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>Live Audio Transcription</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- Mobile adaptation -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-        h1 {
-            color: #333;
-            font-size: 1.8em;
-            text-align: center;
-        }
-        #transcript {
-            margin-top: 20px;
-            border: 1px solid #ccc;
-            padding: 10px;
-            height: 50vh;
-            overflow-y: scroll;
-            background-color: #f9f9f9;
-        }
-        #transcript p {
-            margin: 5px 0;
-            font-size: 1em;
-        }
+      /* CSS styles remain the same */
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      h1 {
+        color: #333;
+        font-size: 1.8em;
+        text-align: center;
+      }
+      #transcript {
+        margin-top: 20px;
+        border: 1px solid #ccc;
+        padding: 10px;
+        height: 50vh;
+        overflow-y: scroll;
+        background-color: #f9f9f9;
+      }
+      #transcript p {
+        margin: 5px 0;
+        font-size: 1em;
+      }
+      .button-container {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        margin-bottom: 20px;
+      }
+      .button-container button {
+        padding: 15px;
+        margin: 5px 0;
+        font-size: 1em;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      @media (min-width: 600px) {
         .button-container {
-            display: flex;
-            flex-direction: column;
-            align-items: stretch;
-            margin-bottom: 20px;
+          flex-direction: row;
+          justify-content: center;
         }
         .button-container button {
-            padding: 15px;
-            margin: 5px 0;
-            font-size: 1em;
-            width: 100%;
-            box-sizing: border-box;
+          width: auto;
+          margin: 0 10px;
         }
-        @media (min-width: 600px) {
-            .button-container {
-                flex-direction: row;
-                justify-content: center;
-            }
-            .button-container button {
-                width: auto;
-                margin: 0 10px;
-            }
-        }
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <h1>Live Audio Transcription</h1>
     <div class="button-container">
-        <button id="start">Start Transcription</button>
-        <button id="stop" disabled>Stop Transcription</button>
+      <button id="start">Start Transcription</button>
+      <button id="stop" disabled>Stop Transcription</button>
     </div>
     <div id="transcript"></div>
 
     <script>
-        const startButton = document.getElementById("start");
-        const stopButton = document.getElementById("stop");
-        const transcriptDiv = document.getElementById("transcript");
-        let audioContext;
-        let processor;
-        let socket;
-        let audioDataQueue = [];
-        let totalDataLength = 0;
-        const desiredChunkLength = 16000 * 5; // 5 seconds at 16000 Hz
+      const startButton = document.getElementById("start");
+      const stopButton = document.getElementById("stop");
+      const transcriptDiv = document.getElementById("transcript");
+      let audioContext;
+      let processor;
+      let socket;
+      let audioDataQueue = [];
+      let totalDataLength = 0;
+      const desiredChunkLength = 16000 * 5; // 1 second at 16000 Hz
+      const overlapLength = 16000 * 1; // 0.5-second overlap
+      let previousChunkOverlap = null;
 
-        startButton.addEventListener("click", async () => {
-            try {
-                startButton.disabled = true;
-                stopButton.disabled = false;
+      startButton.addEventListener("click", async () => {
+        try {
+          startButton.disabled = true;
+          stopButton.disabled = false;
 
-                // Initialize Audio Context
-                audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const source = audioContext.createMediaStreamSource(stream);
+          // Initialize Audio Context
+          audioContext = new (window.AudioContext || window.webkitAudioContext)(
+            { sampleRate: 16000 }
+          );
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+          });
+          const source = audioContext.createMediaStreamSource(stream);
 
-                // Create ScriptProcessorNode
-                processor = audioContext.createScriptProcessor(4096, 1, 1);
+          // Create ScriptProcessorNode
+          processor = audioContext.createScriptProcessor(4096, 1, 1);
 
-                // Set up WebSocket connection
-                const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
-                socket = new WebSocket(protocol + window.location.host + "/ws");
-                socket.binaryType = 'arraybuffer';
+          // Set up WebSocket connection
+          const protocol =
+            window.location.protocol === "https:" ? "wss://" : "ws://";
+          socket = new WebSocket(protocol + window.location.host + "/ws");
+          socket.binaryType = "arraybuffer";
 
-                socket.addEventListener('message', (event) => {
-                    const transcript = document.createElement("p");
-                    transcript.textContent = event.data;
-                    transcriptDiv.appendChild(transcript);
-                    transcriptDiv.scrollTop = transcriptDiv.scrollHeight;
-                });
+          socket.addEventListener("message", (event) => {
+            const transcript = document.createElement("p");
+            transcript.textContent = event.data;
+            transcriptDiv.appendChild(transcript);
+            transcriptDiv.scrollTop = transcriptDiv.scrollHeight;
+          });
 
-                socket.addEventListener('open', () => {
-                    console.log('WebSocket connection established');
-                });
+          socket.addEventListener("open", () => {
+            console.log("WebSocket connection established");
+          });
 
-                socket.addEventListener('close', () => {
-                    console.log('WebSocket connection closed');
-                });
+          socket.addEventListener("close", () => {
+            console.log("WebSocket connection closed");
+          });
 
-                socket.addEventListener('error', (error) => {
-                    console.error('WebSocket error:', error);
-                });
+          socket.addEventListener("error", (error) => {
+            console.error("WebSocket error:", error);
+            alert("An error occurred with the WebSocket connection.");
+          });
 
-                processor.onaudioprocess = (event) => {
-                    const inputData = event.inputBuffer.getChannelData(0);
-                    // Convert Float32Array to Int16Array
-                    const buffer = new ArrayBuffer(inputData.length * 2);
-                    const view = new DataView(buffer);
-                    for (let i = 0; i < inputData.length; i++) {
-                        let s = Math.max(-1, Math.min(1, inputData[i]));
-                        view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-                    }
-                    const int16Data = new Int16Array(buffer);
-                    audioDataQueue.push(int16Data);
-                    totalDataLength += int16Data.length;
-
-                    if (totalDataLength >= desiredChunkLength) {
-                        // Concatenate all the Int16Array data
-                        let combinedData = new Int16Array(totalDataLength);
-                        let offset = 0;
-                        for (let chunk of audioDataQueue) {
-                            combinedData.set(chunk, offset);
-                            offset += chunk.length;
-                        }
-                        // Send the combined data
-                        if (socket.readyState === WebSocket.OPEN) {
-                            socket.send(combinedData.buffer);
-                        }
-                        // Reset the queue and total length
-                        audioDataQueue = [];
-                        totalDataLength = 0;
-                    }
-                };
-
-                source.connect(processor);
-                processor.connect(audioContext.destination);
-
-            } catch (error) {
-                console.error("Error starting transcription:", error);
-                alert("Error starting transcription. Please check your microphone settings.");
-                startButton.disabled = false;
-                stopButton.disabled = true;
+          processor.onaudioprocess = (event) => {
+            const inputData = event.inputBuffer.getChannelData(0);
+            // Convert Float32Array to Int16Array
+            const buffer = new ArrayBuffer(inputData.length * 2);
+            const view = new DataView(buffer);
+            for (let i = 0; i < inputData.length; i++) {
+              let s = Math.max(-1, Math.min(1, inputData[i]));
+              view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
             }
-        });
+            const int16Data = new Int16Array(buffer);
 
-        stopButton.addEventListener("click", () => {
-            try {
-                if (processor) {
-                    processor.disconnect();
-                }
-                if (audioContext) {
-                    audioContext.close();
-                }
-                if (socket && socket.readyState === WebSocket.OPEN) {
-                    // Send any remaining audio data
-                    if (totalDataLength > 0) {
-                        let combinedData = new Int16Array(totalDataLength);
-                        let offset = 0;
-                        for (let chunk of audioDataQueue) {
-                            combinedData.set(chunk, offset);
-                            offset += chunk.length;
-                        }
-                        socket.send(combinedData.buffer);
-                        audioDataQueue = [];
-                        totalDataLength = 0;
-                    }
-                    socket.close();
-                }
-                startButton.disabled = false;
-                stopButton.disabled = true;
-            } catch (error) {
-                console.error("Error stopping transcription:", error);
-                alert("Error stopping transcription. Please try again.");
-            }
-        });
+            // Add new data to the queue
+            audioDataQueue.push(int16Data);
+            totalDataLength += int16Data.length;
 
-        window.addEventListener("beforeunload", () => {
-            if (processor) {
-                processor.disconnect();
+            if (totalDataLength >= desiredChunkLength) {
+              // Calculate the length of the combined data
+              const combinedDataLength =
+                totalDataLength +
+                (previousChunkOverlap ? previousChunkOverlap.length : 0);
+              const combinedData = new Int16Array(combinedDataLength);
+              let offset = 0;
+
+              // Add overlap from previous chunk if any
+              if (previousChunkOverlap) {
+                combinedData.set(previousChunkOverlap, offset);
+                offset += previousChunkOverlap.length;
+              }
+
+              // Add current chunks
+              for (let chunk of audioDataQueue) {
+                combinedData.set(chunk, offset);
+                offset += chunk.length;
+              }
+
+              // Send the combined data
+              if (socket.readyState === WebSocket.OPEN) {
+                console.log(
+                  "Sending audio data to server:",
+                  combinedData.buffer.byteLength,
+                  "bytes"
+                );
+                socket.send(combinedData.buffer);
+              }
+
+              // Save overlap data for next chunk
+              previousChunkOverlap = combinedData.slice(-overlapLength);
+
+              // Reset the queue and total length
+              audioDataQueue = [];
+              totalDataLength = 0;
             }
-            if (audioContext) {
-                audioContext.close();
+          };
+
+          source.connect(processor);
+          processor.connect(audioContext.destination);
+        } catch (error) {
+          console.error("Error starting transcription:", error);
+          alert(
+            "Error starting transcription. Please check your microphone settings."
+          );
+          startButton.disabled = false;
+          stopButton.disabled = true;
+        }
+      });
+
+      stopButton.addEventListener("click", () => {
+        try {
+          if (processor) {
+            processor.disconnect();
+          }
+          if (audioContext) {
+            audioContext.close();
+          }
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            // Send any remaining audio data
+            if (audioDataQueue.length > 0 || previousChunkOverlap) {
+              const totalLength =
+                (previousChunkOverlap ? previousChunkOverlap.length : 0) +
+                audioDataQueue.reduce((sum, chunk) => sum + chunk.length, 0);
+              const combinedData = new Int16Array(totalLength);
+              let offset = 0;
+
+              if (previousChunkOverlap) {
+                combinedData.set(previousChunkOverlap, offset);
+                offset += previousChunkOverlap.length;
+              }
+
+              for (let chunk of audioDataQueue) {
+                combinedData.set(chunk, offset);
+                offset += chunk.length;
+              }
+
+              socket.send(combinedData.buffer);
+              audioDataQueue = [];
+              totalDataLength = 0;
             }
-            if (socket && socket.readyState === WebSocket.OPEN) {
-                socket.close();
-            }
-        });
+            socket.close();
+          }
+          startButton.disabled = false;
+          stopButton.disabled = true;
+        } catch (error) {
+          console.error("Error stopping transcription:", error);
+          alert("Error stopping transcription. Please try again.");
+        }
+      });
+
+      window.addEventListener("beforeunload", () => {
+        if (processor) {
+          processor.disconnect();
+        }
+        if (audioContext) {
+          audioContext.close();
+        }
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.close();
+        }
+      });
     </script>
-</body>
+  </body>
 </html>

@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+aiofiles
+numpy
+faster-whisper
+webrtcvad
+scipy
+colorlog
