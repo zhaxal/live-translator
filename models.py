@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 def load_model():
     try:
         # Use a smaller model for faster transcription
-        model_size = "small"
+        model_size = "large-v3"
         model = WhisperModel(model_size, device="cuda", compute_type="float16")
         logger.info(f"Loaded Whisper model '{model_size}' successfully.")
         return model

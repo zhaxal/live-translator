@@ -69,8 +69,8 @@
     let socket;
     let audioDataQueue = [];
     let totalDataLength = 0;
-    const desiredChunkLength = 16000 * 2; // 2 seconds at 16000 Hz
-    const overlapLength = 0; // No overlap
+    const desiredChunkLength = 16000 * 5; // 2 seconds at 16000 Hz
+    const overlapLength = 2; // No overlap
     let previousChunkOverlap = null;
 
     startButton.addEventListener("click", async () => {
