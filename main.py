@@ -1,7 +1,6 @@
 # main.py
 
 from fastapi import FastAPI
-from starlette.websockets import WebSocket
 from fastapi.staticfiles import StaticFiles
 from config import LOGGING_CONFIG
 from routes import router
@@ -24,13 +23,3 @@ model = initialize_model()
 
 # Store the model in the app state for access in routes
 app.state.model = model
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        log_config=LOGGING_CONFIG,
-    )

@@ -3,7 +3,7 @@
 import numpy as np
 import logging
 from webrtcvad import Vad
-from scipy.signal import resample
+import asyncio
 
 logger = logging.getLogger("app")
 vad = Vad(2)  # Aggressiveness mode for VAD
@@ -20,24 +20,17 @@ def is_silent(audio_array, sample_rate=16000, frame_duration=30):
         frame = audio_array[start:end]
         if len(frame) < frame_length:
             break
-        pcm_data = (frame * 32768).astype(np.int16).tobytes()
+        pcm_data = frame.tobytes()
         if vad.is_speech(pcm_data, sample_rate):
             is_speech = True
             break
 
     return not is_speech
 
-async def transcribe_chunk(audio_data, model):
+def _transcribe_chunk_sync(audio_data, model):
     try:
         # Convert raw PCM data to numpy array
-        audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
-
-        # Resample if necessary
-        desired_sample_rate = 16000
-        current_sample_rate = 16000  # Assuming input is at 16000 Hz
-        if current_sample_rate != desired_sample_rate:
-            num_samples = int(len(audio_array) * desired_sample_rate / current_sample_rate)
-            audio_array = resample(audio_array, num_samples)
+        audio_array = np.frombuffer(audio_data, dtype=np.int16)
 
         # Check for silence using VAD
         if is_silent(audio_array):
@@ -45,6 +38,9 @@ async def transcribe_chunk(audio_data, model):
             return ""
 
         logger.info("Transcribing audio chunk...")
+
+        # Normalize audio to float32 in range [-1, 1]
+        audio_array = audio_array.astype(np.float32) / 32768.0
 
         # Transcribe the audio array
         segments, _ = model.transcribe(
@@ -61,4 +57,8 @@ async def transcribe_chunk(audio_data, model):
         logger.exception(f"An error occurred during transcription: {e}")
         transcription = "Error in audio processing."
 
+    return transcription
+
+async def transcribe_chunk(audio_data, model):
+    transcription = await asyncio.to_thread(_transcribe_chunk_sync, audio_data, model)
     return transcription

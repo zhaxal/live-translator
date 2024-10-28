@@ -3,7 +3,7 @@
 from fastapi import APIRouter, WebSocket
 from fastapi.responses import HTMLResponse
 from starlette.websockets import WebSocketDisconnect, WebSocketState
-from utils import is_silent, transcribe_chunk
+from utils import transcribe_chunk
 import logging
 import aiofiles
 
