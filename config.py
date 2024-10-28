@@ -6,9 +6,9 @@ LOGGING_CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "colored": {
+        "standard": {
             "()": "colorlog.ColoredFormatter",
-            "format": "%(log_color)s%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+            "format": "%(log_color)s[%(asctime)s] %(levelname)s - %(message)s",
             "log_colors": {
                 "DEBUG": "cyan",
                 "INFO": "green",
@@ -17,38 +17,16 @@ LOGGING_CONFIG = {
                 "CRITICAL": "bold_red",
             },
         },
-        "standard": {
-            "format": "%(asctime)s - %(levelname)s - %(name)s - %(message)s",
-        },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "colored",
+            "formatter": "standard",
             "stream": "ext://sys.stdout",
         },
-        "file": {
-            "class": "logging.FileHandler",
-            "formatter": "standard",
-            "filename": "application.log",
-            "mode": "a",
-        },
     },
-    "loggers": {
-        "": {
-            "handlers": ["console", "file"],
-            "level": "INFO",
-            "propagate": False,
-        },
-        "uvicorn.error": {
-            "level": "INFO",
-            "handlers": ["console", "file"],
-            "propagate": False,
-        },
-        "uvicorn.access": {
-            "level": "INFO",
-            "handlers": ["console", "file"],
-            "propagate": False,
-        },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
     },
 }

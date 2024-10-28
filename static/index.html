@@ -5,7 +5,7 @@
   <title>Live Audio Transcription</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
-    /* CSS styles remain the same */
+    /* Your existing CSS styles */
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
@@ -69,8 +69,8 @@
     let socket;
     let audioDataQueue = [];
     let totalDataLength = 0;
-    const desiredChunkLength = 16000 * 5; // 5 seconds at 16000 Hz
-    const overlapLength = 16000 * 1; // 1-second overlap
+    const desiredChunkLength = 16000 * 2; // 2 seconds at 16000 Hz
+    const overlapLength = 0; // No overlap
     let previousChunkOverlap = null;
 
     startButton.addEventListener("click", async () => {
@@ -160,7 +160,9 @@
             }
 
             // Save overlap data for next chunk
-            previousChunkOverlap = combinedData.slice(-overlapLength);
+            previousChunkOverlap = overlapLength > 0
+              ? combinedData.slice(-overlapLength)
+              : null;
 
             // Reset the queue and total length
             audioDataQueue = [];

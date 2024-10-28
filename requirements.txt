@@ -3,5 +3,5 @@ uvicorn
 aiofiles
 numpy
 faster-whisper
-webrtcvad
 colorlog
+websockets
