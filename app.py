@@ -55,7 +55,9 @@ def transcribe_audio(audio_data):
         # Transcribe the audio
         segments, _ = model.transcribe(
             audio_array,
-            beam_size=5
+            beam_size=5,
+            task="translate",
+            language="en",
         )
 
         # Combine the text from all segments
