@@ -1,4 +1,1 @@
-lecture_transcripts
-audio/*
-textfiles/*
-transcripts/*
+__pycache__
