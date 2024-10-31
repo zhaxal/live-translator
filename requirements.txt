@@ -5,3 +5,4 @@ numpy
 faster-whisper
 colorlog
 websockets
+openai

@@ -9,6 +9,7 @@ from models import load_model
 import asyncio
 import numpy as np
 import aiofiles
+from openai import OpenAI
 
 # Configure logging
 import logging.config
@@ -23,6 +24,9 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Load the Whisper model once at startup
 model = load_model()
+
+sumForLlm = ""
+client = OpenAI()
 
 @app.get("/")
 async def get():
@@ -41,11 +45,33 @@ async def websocket_endpoint(websocket: WebSocket):
             transcription = await asyncio.to_thread(transcribe_audio, data)
             if transcription.strip():
                 await websocket.send_text(transcription)
+
+            if len(sumForLlm) >= 1000:
+                translation = await asyncio.to_thread(llm_translate, sumForLlm)
+                await websocket.send_text("Response from ai: " + translation)
+
+
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected.")
     except Exception as e:
         logger.exception(f"Error in WebSocket connection: {e}")
         await websocket.close()
+
+
+def llm_translate(text):
+    completion = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {
+                "role": "system", "content": "You get a parts of the transcriptions, which you should translate to an English. Also, sometimes translation can be wrong, so you should correct it depending on the context."
+            },
+            {
+                "role": "user", "content": text
+            }
+        ]
+    )
+
+    return completion.choices[0].message.content
 
 def transcribe_audio(audio_data):
     try:
@@ -55,14 +81,13 @@ def transcribe_audio(audio_data):
         # Transcribe the audio
         segments, _ = model.transcribe(
             audio_array,
-            beam_size=5,
-            task="translate",
-            language="en",
+            beam_size=5
         )
 
         # Combine the text from all segments
         transcription = " ".join([segment.text for segment in segments]) if segments else ""
         logger.info(f"Transcription: {transcription}")
+        sumForLlm += transcription
         return transcription
 
     except Exception as e:
