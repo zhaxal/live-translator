@@ -38,17 +38,20 @@ async def get():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+    global sumForLlm
     try:
         while True:
             data = await websocket.receive_bytes()
+            if len(sumForLlm) >= 1000:
+                translation = await asyncio.to_thread(llm_translate, sumForLlm)
+                await websocket.send_text("Response from ai: " + translation)
+                sumForLlm = ""
             # Offload transcription to avoid blocking the event loop
             transcription = await asyncio.to_thread(transcribe_audio, data)
             if transcription.strip():
                 await websocket.send_text(transcription)
 
-            if len(sumForLlm) >= 1000:
-                translation = await asyncio.to_thread(llm_translate, sumForLlm)
-                await websocket.send_text("Response from ai: " + translation)
+
 
 
     except WebSocketDisconnect:
@@ -60,19 +63,23 @@ async def websocket_endpoint(websocket: WebSocket):
 
 
 def llm_translate(text):
-    completion = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {
-                "role": "system", "content": "You get a parts of the transcriptions, which you should translate to an English. Also, sometimes translation can be wrong, so you should correct it depending on the context."
-            },
-            {
-                "role": "user", "content": text
-            }
-        ]
-    )
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {
+                    "role": "system", "content": "You get a parts of the transcriptions, which you should translate to an English. Also, sometimes translation can be wrong, so you should correct it depending on the context."
+                },
+                {
+                    "role": "user", "content": text
+                }
+            ]
+        )
 
-    return completion.choices[0].message.content
+        return completion.choices[0].message.content
+    except Exception as e:
+        logger.exception("Failed to translate text.")
+        return "Error in translation."
 
 def transcribe_audio(audio_data):
     global sumForLlm
