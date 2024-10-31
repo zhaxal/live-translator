@@ -61,7 +61,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
 def llm_translate(text):
     completion = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-3.5-turbo",
         messages=[
             {
                 "role": "system", "content": "You get a parts of the transcriptions, which you should translate to an English. Also, sometimes translation can be wrong, so you should correct it depending on the context."
@@ -75,6 +75,7 @@ def llm_translate(text):
     return completion.choices[0].message.content
 
 def transcribe_audio(audio_data):
+    global sumForLlm
     try:
         # Convert bytes to numpy array
         audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
