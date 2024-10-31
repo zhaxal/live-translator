@@ -6,10 +6,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from config import LOGGING_CONFIG
 from models import load_model
+from llm import init_openai
 import asyncio
 import numpy as np
 import aiofiles
-from openai import OpenAI
 
 # Configure logging
 import logging.config
@@ -26,7 +26,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 model = load_model()
 
 sumForLlm = ""
-client = OpenAI()
+client = init_openai()
 
 @app.get("/")
 async def get():
@@ -56,6 +56,7 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as e:
         logger.exception(f"Error in WebSocket connection: {e}")
         await websocket.close()
+
 
 
 def llm_translate(text):
