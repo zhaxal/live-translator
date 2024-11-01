@@ -1,6 +1,6 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 import logging.config
 import asyncio
 import numpy as np
@@ -24,6 +24,31 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Initialize models at startup
 model = load_model()
 openai_client = init_openai()
+
+@app.post("/analyze-history")
+async def analyze_history(history: list[dict]):
+    try:
+        # Format history for GPT
+        formatted_history = "\n".join([
+            f"[{entry['timestamp']}] {entry['text']}"
+            for entry in history
+        ])
+        
+        # Send to GPT for analysis
+        response = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant analyzing transcription history. Provide a brief summary and any key points or patterns you notice."},
+                {"role": "user", "content": f"Please analyze this transcription history:\n\n{formatted_history}"}
+            ]
+        )
+        
+        return JSONResponse({
+            "analysis": response.choices[0].message.content
+        })
+    except Exception as e:
+        logger.exception("Failed to analyze history")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/")
 async def get():
