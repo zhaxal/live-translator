@@ -1,294 +1,247 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <title>Live Audio Transcription</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
-      /* Your existing CSS styles */
-      body {
-        font-family: Arial, sans-serif;
-        margin: 20px;
-      }
-      h1 {
-        color: #333;
-        font-size: 1.8em;
-        text-align: center;
-      }
-      #transcript {
-        margin-top: 20px;
-        border: 1px solid #ccc;
-        padding: 10px;
-        height: 50vh;
-        overflow-y: scroll;
-        background-color: #f9f9f9;
-      }
-      #transcript p {
-        margin: 5px 0;
-        font-size: 1em;
-      }
-      .button-container {
-        display: flex;
-        flex-direction: column;
-        align-items: stretch;
-        margin-bottom: 20px;
-      }
-      .button-container button {
-        padding: 15px;
-        margin: 5px 0;
-        font-size: 1em;
-        width: 100%;
-        box-sizing: border-box;
-      }
-      @media (min-width: 600px) {
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        h1 {
+            color: #333;
+            font-size: 1.8em;
+            text-align: center;
+        }
+        
+        #transcript {
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 50vh;
+            overflow-y: scroll;
+            background-color: #f9f9f9;
+        }
+        
+        .transcript-entry {
+            margin: 8px 0;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .timestamp {
+            color: #666;
+            font-size: 0.8em;
+            margin-right: 8px;
+        }
+        
+        .text {
+            color: #333;
+        }
+        
         .button-container {
-          flex-direction: row;
-          justify-content: center;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px 0;
         }
-        .button-container button {
-          width: auto;
-          margin: 0 10px;
+        
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
         }
-      }
-      .transcript-entry {
-        margin: 8px 0;
-        padding: 8px;
-        border-bottom: 1px solid #eee;
-      }
-
-      .transcript-entry .timestamp {
-        color: #666;
-        font-size: 0.8em;
-        margin-right: 8px;
-      }
-
-      .transcript-entry .text {
-        color: #333;
-      }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            text-align: center;
+            margin: 10px 0;
+            color: #666;
+        }
     </style>
-  </head>
-  <body>
+</head>
+<body>
     <h1>Live Audio Transcription</h1>
     <div class="button-container">
-      <button id="start">Start Transcription</button>
-      <button id="stop" disabled>Stop Transcription</button>
+        <button id="start">Start Transcription</button>
+        <button id="stop" disabled>Stop Transcription</button>
     </div>
+    <div id="status" class="status"></div>
     <div id="transcript"></div>
 
     <script>
-      // Enhanced frontend code for index.html script section
+        const startButton = document.getElementById("start");
+        const stopButton = document.getElementById("stop");
+        const transcriptDiv = document.getElementById("transcript");
+        const statusDiv = document.getElementById("status");
+        
+        let audioContext;
+        let processor;
+        let socket;
+        let mediaStream;
+        
+        const SAMPLE_RATE = 16000;
+        const PROCESSOR_BUFFER_SIZE = 4096;
+        const DESIRED_CHUNK_SIZE = SAMPLE_RATE * 2; // 2 seconds
+        
+        let audioQueue = [];
+        let totalQueueLength = 0;
 
-      class AudioTranscriptionClient {
-        constructor() {
-          this.startButton = document.getElementById("start");
-          this.stopButton = document.getElementById("stop");
-          this.transcriptDiv = document.getElementById("transcript");
-          this.audioContext = null;
-          this.processor = null;
-          this.socket = null;
-          this.mediaStream = null;
-
-          // Audio processing configuration
-          this.config = {
-            sampleRate: 16000,
-            processorSize: 4096,
-            desiredChunkSize: 16000 * 2, // 2 seconds of audio
-            maxRetries: 3,
-            retryDelay: 1000,
-          };
-
-          this.audioQueue = {
-            buffer: [],
-            totalLength: 0,
-          };
-
-          this.setupEventListeners();
+        function updateStatus(message) {
+            statusDiv.textContent = message;
         }
 
-        setupEventListeners() {
-          this.startButton.addEventListener("click", () =>
-            this.startTranscription()
-          );
-          this.stopButton.addEventListener("click", () =>
-            this.stopTranscription()
-          );
-          window.addEventListener("beforeunload", () => this.cleanup());
+        function addTranscript(text, timestamp) {
+            const entry = document.createElement("div");
+            entry.className = "transcript-entry";
+            
+            const time = new Date(timestamp).toLocaleTimeString();
+            entry.innerHTML = `
+                <span class="timestamp">${time}</span>
+                <span class="text">${text}</span>
+            `;
+            
+            transcriptDiv.appendChild(entry);
+            transcriptDiv.scrollTop = transcriptDiv.scrollHeight;
         }
 
-        async startTranscription() {
-          try {
-            this.updateButtonState(true);
-            await this.initializeAudioContext();
-            await this.setupWebSocket();
-            await this.setupAudioProcessing();
-          } catch (error) {
-            console.error("Failed to start transcription:", error);
-            this.handleError(
-              "Failed to start transcription. Please check your microphone settings."
-            );
-            this.updateButtonState(false);
-          }
+        async function startTranscription() {
+            try {
+                startButton.disabled = true;
+                stopButton.disabled = false;
+                updateStatus("Initializing...");
+
+                // Initialize audio context
+                audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                    sampleRate: SAMPLE_RATE
+                });
+
+                // Get media stream
+                mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const source = audioContext.createMediaStreamSource(mediaStream);
+
+                // Create processor
+                processor = audioContext.createScriptProcessor(PROCESSOR_BUFFER_SIZE, 1, 1);
+
+                // Setup WebSocket
+                const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+                socket = new WebSocket(`${protocol}${window.location.host}/ws`);
+                socket.binaryType = "arraybuffer";
+
+                socket.addEventListener("open", () => {
+                    updateStatus("Connected - Recording...");
+                });
+
+                socket.addEventListener("message", (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        addTranscript(data.text, data.timestamp);
+                    } catch (e) {
+                        console.error("Failed to parse message:", e);
+                    }
+                });
+
+                socket.addEventListener("close", () => {
+                    updateStatus("Disconnected");
+                });
+
+                socket.addEventListener("error", (error) => {
+                    console.error("WebSocket error:", error);
+                    updateStatus("Connection error");
+                });
+
+                // Handle audio processing
+                processor.onaudioprocess = (event) => {
+                    const inputData = event.inputBuffer.getChannelData(0);
+                    const int16Data = new Int16Array(inputData.length);
+                    
+                    for (let i = 0; i < inputData.length; i++) {
+                        int16Data[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
+                    }
+
+                    audioQueue.push(int16Data);
+                    totalQueueLength += int16Data.length;
+
+                    if (totalQueueLength >= DESIRED_CHUNK_SIZE) {
+                        const combinedData = new Int16Array(totalQueueLength);
+                        let offset = 0;
+                        
+                        for (const chunk of audioQueue) {
+                            combinedData.set(chunk, offset);
+                            offset += chunk.length;
+                        }
+
+                        if (socket.readyState === WebSocket.OPEN) {
+                            socket.send(combinedData.buffer);
+                        }
+
+                        audioQueue = [];
+                        totalQueueLength = 0;
+                    }
+                };
+
+                source.connect(processor);
+                processor.connect(audioContext.destination);
+
+            } catch (error) {
+                console.error("Error starting transcription:", error);
+                updateStatus("Error: " + error.message);
+                startButton.disabled = false;
+                stopButton.disabled = true;
+            }
         }
 
-        async initializeAudioContext() {
-          this.audioContext = new (window.AudioContext ||
-            window.webkitAudioContext)({
-            sampleRate: this.config.sampleRate,
-          });
-          this.mediaStream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-          });
+        async function stopTranscription() {
+            try {
+                updateStatus("Stopping...");
+
+                if (processor) {
+                    processor.disconnect();
+                    processor = null;
+                }
+
+                if (audioContext) {
+                    await audioContext.close();
+                    audioContext = null;
+                }
+
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                    mediaStream = null;
+                }
+
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.close();
+                    socket = null;
+                }
+
+                startButton.disabled = false;
+                stopButton.disabled = true;
+                updateStatus("Stopped");
+                
+            } catch (error) {
+                console.error("Error stopping transcription:", error);
+                updateStatus("Error stopping: " + error.message);
+            }
         }
 
-        async setupWebSocket() {
-          const protocol =
-            window.location.protocol === "https:" ? "wss://" : "ws://";
-          this.socket = new WebSocket(`${protocol}${window.location.host}/ws`);
-          this.socket.binaryType = "arraybuffer";
+        startButton.addEventListener("click", startTranscription);
+        stopButton.addEventListener("click", stopTranscription);
 
-          return new Promise((resolve, reject) => {
-            this.socket.addEventListener("open", () => {
-              console.log("WebSocket connected");
-              resolve();
-            });
-
-            this.socket.addEventListener("message", (event) => {
-              try {
-                const data = JSON.parse(event.data);
-                this.updateTranscript(data);
-              } catch (e) {
-                console.error("Failed to parse message:", e);
-              }
-            });
-
-            this.socket.addEventListener("close", () => {
-              console.log("WebSocket disconnected");
-              this.handleError("Connection lost. Please try reconnecting.");
-            });
-
-            this.socket.addEventListener("error", (error) => {
-              console.error("WebSocket error:", error);
-              reject(error);
-            });
-          });
-        }
-
-        async setupAudioProcessing() {
-          const source = this.audioContext.createMediaStreamSource(
-            this.mediaStream
-          );
-          this.processor = this.audioContext.createScriptProcessor(
-            this.config.processorSize,
-            1,
-            1
-          );
-
-          this.processor.onaudioprocess = (event) =>
-            this.handleAudioProcess(event);
-
-          source.connect(this.processor);
-          this.processor.connect(this.audioContext.destination);
-        }
-
-        handleAudioProcess(event) {
-          const inputData = event.inputBuffer.getChannelData(0);
-          const int16Data = this.convertAudioData(inputData);
-
-          this.audioQueue.buffer.push(int16Data);
-          this.audioQueue.totalLength += int16Data.length;
-
-          if (this.audioQueue.totalLength >= this.config.desiredChunkSize) {
-            this.sendAudioData();
-          }
-        }
-
-        convertAudioData(inputData) {
-          const int16Data = new Int16Array(inputData.length);
-          for (let i = 0; i < inputData.length; i++) {
-            const s = Math.max(-1, Math.min(1, inputData[i]));
-            int16Data[i] = s * 32767;
-          }
-          return int16Data;
-        }
-
-        sendAudioData() {
-          if (this.socket?.readyState !== WebSocket.OPEN) return;
-
-          const combinedData = new Int16Array(this.audioQueue.totalLength);
-          let offset = 0;
-
-          for (const chunk of this.audioQueue.buffer) {
-            combinedData.set(chunk, offset);
-            offset += chunk.length;
-          }
-
-          this.socket.send(combinedData.buffer);
-
-          // Reset queue
-          this.audioQueue.buffer = [];
-          this.audioQueue.totalLength = 0;
-        }
-
-        updateTranscript(data) {
-          const transcriptEntry = document.createElement("div");
-          transcriptEntry.className = "transcript-entry";
-          transcriptEntry.innerHTML = `
-            <span class="timestamp">${new Date(
-              data.timestamp
-            ).toLocaleTimeString()}</span>
-            <span class="text">${data.text}</span>
-        `;
-          this.transcriptDiv.appendChild(transcriptEntry);
-          this.transcriptDiv.scrollTop = this.transcriptDiv.scrollHeight;
-        }
-
-        async stopTranscription() {
-          try {
-            await this.cleanup();
-            this.updateButtonState(false);
-          } catch (error) {
-            console.error("Error stopping transcription:", error);
-            this.handleError("Error stopping transcription. Please try again.");
-          }
-        }
-
-        async cleanup() {
-          if (this.processor) {
-            this.processor.disconnect();
-            this.processor = null;
-          }
-
-          if (this.audioContext) {
-            await this.audioContext.close();
-            this.audioContext = null;
-          }
-
-          if (this.mediaStream) {
-            this.mediaStream.getTracks().forEach((track) => track.stop());
-            this.mediaStream = null;
-          }
-
-          if (this.socket?.readyState === WebSocket.OPEN) {
-            this.socket.close();
-            this.socket = null;
-          }
-        }
-
-        updateButtonState(isRecording) {
-          this.startButton.disabled = isRecording;
-          this.stopButton.disabled = !isRecording;
-        }
-
-        handleError(message) {
-          alert(message);
-          console.error(message);
-        }
-      }
-
-      // Initialize the client when the page loads
-      window.addEventListener("DOMContentLoaded", () => {
-        new AudioTranscriptionClient();
-      });
+        window.addEventListener("beforeunload", stopTranscription);
     </script>
-  </body>
+</body>
 </html>
