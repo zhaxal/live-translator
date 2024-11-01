@@ -1,5 +1,4 @@
-# app.py
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 import logging.config
@@ -33,9 +32,12 @@ async def get():
     return HTMLResponse(content)
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(
+    websocket: WebSocket,
+    lang: str = Query("en")
+):
     await websocket.accept()
-    logger.info("New WebSocket connection established")
+    logger.info(f"New WebSocket connection established for language: {lang}")
     
     try:
         while True:
@@ -45,7 +47,8 @@ async def websocket_endpoint(websocket: WebSocket):
             # Process audio in background
             transcription = await asyncio.to_thread(
                 transcribe_audio,
-                audio_data
+                audio_data,
+                lang
             )
             
             # Send transcription if not empty
@@ -62,7 +65,7 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.exception(f"Error in WebSocket connection: {e}")
         await websocket.close()
 
-def transcribe_audio(audio_data: bytes) -> str:
+def transcribe_audio(audio_data: bytes, language: str = "en") -> str:
     try:
         # Convert bytes to numpy array
         audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
@@ -71,15 +74,14 @@ def transcribe_audio(audio_data: bytes) -> str:
         segments, _ = model.transcribe(
             audio_array,
             beam_size=5,
-            task="translate",
-            language="en",
+            language=language,
             vad_filter=True,
             vad_parameters=dict(min_silence_duration_ms=500)
         )
 
         # Combine all segments
         transcription = " ".join(segment.text for segment in segments if segment.text.strip())
-        logger.info(f"Transcription: {transcription}")
+        logger.info(f"Transcription ({language}): {transcription}")
         
         return transcription
 
