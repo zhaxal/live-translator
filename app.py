@@ -42,10 +42,10 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_bytes()
-            if len(sumForLlm) >= 1000:
-                translation = await asyncio.to_thread(llm_translate, sumForLlm)
-                await websocket.send_text("Response from ai: " + translation)
-                sumForLlm = ""
+            # if len(sumForLlm) >= 1000:
+            #     translation = await asyncio.to_thread(llm_translate, sumForLlm)
+            #     await websocket.send_text("Response from ai: " + translation)
+            #     sumForLlm = ""
             # Offload transcription to avoid blocking the event loop
             transcription = await asyncio.to_thread(transcribe_audio, data)
             if transcription.strip():
@@ -90,13 +90,15 @@ def transcribe_audio(audio_data):
         # Transcribe the audio
         segments, _ = model.transcribe(
             audio_array,
-            beam_size=5
+            beam_size=5,
+            task="translate",
+            language="en",
         )
 
         # Combine the text from all segments
         transcription = " ".join([segment.text for segment in segments]) if segments else ""
         logger.info(f"Transcription: {transcription}")
-        sumForLlm += transcription
+        # sumForLlm += transcription
         return transcription
 
     except Exception as e:
