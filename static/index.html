@@ -83,6 +83,17 @@
         .download-btn {
             background-color: #28a745;
         }
+
+        .clear-btn {
+            background-color: #dc3545;
+        }
+
+        .history-controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 10px 0;
+        }
     </style>
 </head>
 <body>
@@ -104,7 +115,10 @@
         </select>
         <button id="start">Start Transcription</button>
         <button id="stop" disabled>Stop Transcription</button>
+    </div>
+    <div class="history-controls">
         <button id="download" class="download-btn">Download History</button>
+        <button id="clear" class="clear-btn">Clear History</button>
     </div>
     <div id="status" class="status"></div>
     <div id="transcript"></div>
@@ -113,6 +127,7 @@
         const startButton = document.getElementById("start");
         const stopButton = document.getElementById("stop");
         const downloadButton = document.getElementById("download");
+        const clearButton = document.getElementById("clear");
         const languageSelect = document.getElementById("language");
         const transcriptDiv = document.getElementById("transcript");
         const statusDiv = document.getElementById("status");
@@ -152,6 +167,11 @@
         }
 
         function downloadHistory() {
+            if (transcriptionHistory.length === 0) {
+                updateStatus("No history to download");
+                return;
+            }
+
             const text = transcriptionHistory
                 .map(entry => `[${new Date(entry.timestamp).toLocaleString()}] ${entry.text}`)
                 .join('\n');
@@ -165,6 +185,12 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+        }
+
+        function clearHistory() {
+            transcriptionHistory = [];
+            transcriptDiv.innerHTML = '';
+            updateStatus("History cleared");
         }
 
         async function startTranscription() {
@@ -288,6 +314,7 @@
         startButton.addEventListener("click", startTranscription);
         stopButton.addEventListener("click", stopTranscription);
         downloadButton.addEventListener("click", downloadHistory);
+        clearButton.addEventListener("click", clearHistory);
 
         window.addEventListener("beforeunload", stopTranscription);
     </script>
