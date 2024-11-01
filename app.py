@@ -38,7 +38,7 @@ async def analyze_history(history: list[dict]):
         response = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant analyzing transcription history. Provide a brief summary and any key points or patterns you notice."},
+                {"role": "system", "content": "You are a helpful assistant analyzing transcription history. Provide a brief summary and any key points or patterns you notice. Also, don't include timestamps and other unecessary information."},
                 {"role": "user", "content": f"Please analyze this transcription history:\n\n{formatted_history}"}
             ]
         )
