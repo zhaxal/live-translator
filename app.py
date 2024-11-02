@@ -32,20 +32,31 @@ async def analyze_history(body: dict):
         raise HTTPException(status_code=400, detail="No history provided")
     
     language = body.get("language", "en")
+    
+    # Map language codes to full names
+    language_names = {
+        "en": "English",
+        "ja": "Japanese",
+        "es": "Spanish",
+        "fr": "French",
+        "de": "German",
+        "it": "Italian",
+        "pt": "Portuguese",
+        "nl": "Dutch",
+        "pl": "Polish",
+        "ru": "Russian",
+        "ko": "Korean",
+        "zh": "Chinese"
+    }
 
     try:
-        # Format history for GPT
-        formatted_history = "\n".join([
-            f"[{entry['timestamp']}] {entry['text']}"
-            for entry in history
-        ])
+        formatted_history = "\n".join([entry['text'] for entry in history])
         
-        # Send to GPT for analysis
         response = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant analyzing transcription history. Provide a brief summary and any key points or patterns you notice. Also, don't include timestamps and other unecessary information."},
-                {"role": "user", "content": f"Please analyze this transcription history in this language({language}):\n\n{formatted_history}"}
+                {"role": "system", "content": "You are analyzing transcribed speech that may have recognition errors. Provide a clear summary and handle unclear words based on context."},
+                {"role": "user", "content": f"Analyze this text and write the summary in {language_names.get(language, 'English')}:\n\n{formatted_history}"}
             ]
         )
         

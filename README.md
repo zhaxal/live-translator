@@ -5,17 +5,17 @@ A real-time audio transcription application built with FastAPI and WebSockets. I
 ## Features
 
 - Real-time audio transcription in multiple languages
-- Dark/Light theme support
+- Modern, responsive UI with Dark/Light theme support
 - Transcription history management
-  - Download transcription history
+  - Download transcription history as text file
   - Clear history
-  - AI-powered analysis of transcription history
-- Support for 12 languages including:
+  - AI-powered analysis of transcription history using GPT-3.5
+- Support for 12 languages:
   - English, Spanish, French, German
   - Italian, Portuguese, Dutch, Polish
   - Russian, Japanese, Korean, Chinese
 - WebSocket-based communication for low-latency interaction
-- Colored logging output for better debugging
+- Clean, modular codebase with separated concerns
 
 ## Requirements
 
@@ -61,212 +61,99 @@ uvicorn app:app --reload
 
 4. Click "Start Transcription" to begin capturing and transcribing audio
 
-5. Use the control buttons to:
-   - Download transcription history
-   - Analyze transcriptions using GPT-3.5
-   - Clear the transcription history
-
 ## Project Structure
 
 ```
 └── ./
     ├── static/
-    │   └── index.html      # Frontend UI
-    ├── app.py              # Main FastAPI application
-    ├── config.py           # Logging configuration
-    ├── llm.py             # OpenAI client initialization
-    ├── models.py          # Whisper model setup
-    └── requirements.txt    # Project dependencies
+    │   ├── css/
+    │   │   └── styles.css       # Application styling
+    │   ├── js/
+    │   │   └── app.js          # Frontend JavaScript
+    │   └── index.html          # Main HTML template
+    ├── app.py                  # FastAPI application
+    ├── config.py               # Logging configuration
+    ├── llm.py                  # OpenAI client initialization
+    ├── models.py               # Whisper model setup
+    └── requirements.txt        # Project dependencies
 ```
 
 ## Component Overview
 
-### Backend (`app.py`)
+### Frontend Architecture
 
-- FastAPI application with WebSocket support
-- Real-time audio processing using Whisper
-- GPT-3.5 integration for transcription analysis
-- Efficient audio chunking and processing
-- Comprehensive error handling and logging
+#### HTML (`static/index.html`)
+- Semantic HTML5 structure
+- Clean organization of UI components
+- External CSS and JavaScript imports
 
-### Frontend (`static/index.html`)
-
-- Clean, responsive UI with dark/light theme support
-- Real-time audio capture and streaming
-- WebSocket communication for low-latency updates
-- Transcription history management
-- Download and analysis capabilities
-
-### Model Handling (`models.py`)
-
-- Efficient Whisper model initialization
-- CUDA acceleration with float16 precision
-- Optimized for real-time transcription
-
-## Technical Details
-
-### Audio Processing
-
-- Sample Rate: 16kHz
-- Buffer Size: 4096 samples
-- Chunk Size: 3 seconds of audio
-- Format: 16-bit PCM
-
-### Transcription
-
-- Model: Whisper Medium
-- Compute Type: float16
-- Device: CUDA (when available)
-- VAD Filter: Enabled with 500ms minimum silence duration
-
-## Error Handling
-
-The application includes comprehensive error handling for:
-- WebSocket connection issues
-- Audio capture problems
-- Transcription failures
-- Analysis errors
-
-## Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to your branch
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License.
-
-## Acknowledgements
-
-- [FastAPI](https://fastapi.tiangolo.com/)
-- [Whisper](https://github.com/openai/whisper)
-- [faster-whisper](https://github.com/guillaumekln/faster-whisper)
-- [OpenAI](https://openai.com/)
-- [Colorlog](https://github.com/borntyping/python-colorlog)# Live Audio Transcription
-
-A real-time audio transcription application built with FastAPI and WebSockets. It captures audio from your microphone, transcribes it using the Whisper model, and provides analysis capabilities using GPT-3.5.
-
-## Features
-
-- Real-time audio transcription in multiple languages
+#### CSS (`static/css/styles.css`)
+- CSS variables for theme management
+- Responsive design
 - Dark/Light theme support
-- Transcription history management
-  - Download transcription history
-  - Clear history
-  - AI-powered analysis of transcription history
-- Support for 12 languages including:
-  - English, Spanish, French, German
-  - Italian, Portuguese, Dutch, Polish
-  - Russian, Japanese, Korean, Chinese
-- WebSocket-based communication for low-latency interaction
-- Colored logging output for better debugging
+- Modern UI components styling
 
-## Requirements
+#### JavaScript (`static/js/app.js`)
+- Modular code organization
+- WebSocket audio streaming
+- Real-time UI updates
+- Theme management
+- History management
+- Error handling
 
-- Python 3.8+
-- CUDA-capable GPU (recommended for optimal performance)
-- OpenAI API key for analysis features
+### Backend Architecture
 
-## Installation
+#### FastAPI Application (`app.py`)
+- WebSocket endpoint for audio streaming
+- Static file serving
+- Analysis endpoint using GPT-3.5
+- Error handling and logging
 
-1. Clone the repository:
-```sh
-git clone https://github.com/yourusername/live-transcription.git
-cd live-transcription
-```
+#### Model Management (`models.py`)
+- Whisper model initialization
+- CUDA acceleration
+- Optimized transcription settings
 
-2. Create a virtual environment and activate it:
-```sh
-python -m venv venv
-source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-```
+#### OpenAI Integration (`llm.py`)
+- GPT-3.5 client setup
+- Analysis functionality
 
-3. Install the required dependencies:
-```sh
-pip install -r requirements.txt
-```
-
-4. Set up your OpenAI API key:
-```sh
-export OPENAI_API_KEY='your-api-key-here'  # Linux/Mac
-set OPENAI_API_KEY=your-api-key-here  # Windows
-```
-
-## Usage
-
-1. Start the FastAPI server:
-```sh
-uvicorn app:app --reload
-```
-
-2. Open your browser and navigate to `http://localhost:8000`
-
-3. Select your desired language from the dropdown menu
-
-4. Click "Start Transcription" to begin capturing and transcribing audio
-
-5. Use the control buttons to:
-   - Download transcription history
-   - Analyze transcriptions using GPT-3.5
-   - Clear the transcription history
-
-## Project Structure
-
-```
-└── ./
-    ├── static/
-    │   └── index.html      # Frontend UI
-    ├── app.py              # Main FastAPI application
-    ├── config.py           # Logging configuration
-    ├── llm.py             # OpenAI client initialization
-    ├── models.py          # Whisper model setup
-    └── requirements.txt    # Project dependencies
-```
-
-## Component Overview
-
-### Backend (`app.py`)
-
-- FastAPI application with WebSocket support
-- Real-time audio processing using Whisper
-- GPT-3.5 integration for transcription analysis
-- Efficient audio chunking and processing
-- Comprehensive error handling and logging
-
-### Frontend (`static/index.html`)
-
-- Clean, responsive UI with dark/light theme support
-- Real-time audio capture and streaming
-- WebSocket communication for low-latency updates
-- Transcription history management
-- Download and analysis capabilities
-
-### Model Handling (`models.py`)
-
-- Efficient Whisper model initialization
-- CUDA acceleration with float16 precision
-- Optimized for real-time transcription
-
-## Technical Details
+## Technical Specifications
 
 ### Audio Processing
-
 - Sample Rate: 16kHz
 - Buffer Size: 4096 samples
-- Chunk Size: 3 seconds of audio
+- Chunk Size: 3 seconds
 - Format: 16-bit PCM
 
-### Transcription
+### WebSocket Communication
+- Binary audio data streaming
+- JSON response format
+- Automatic reconnection handling
+- Error recovery
 
+### Transcription Settings
 - Model: Whisper Medium
 - Compute Type: float16
 - Device: CUDA (when available)
-- VAD Filter: Enabled with 500ms minimum silence duration
+- VAD Filter: Enabled (500ms silence threshold)
+
+## Development
+
+### Running in Development Mode
+```sh
+# Install development dependencies
+pip install -r requirements.txt
+
+# Start the development server
+uvicorn app:app --reload --port 8000
+```
+
+### Code Style
+- Follow PEP 8 for Python code
+- Use ES6+ features for JavaScript
+- Maintain consistent indentation (2 spaces)
+- Use meaningful variable and function names
 
 ## Error Handling
 
@@ -275,15 +162,22 @@ The application includes comprehensive error handling for:
 - Audio capture problems
 - Transcription failures
 - Analysis errors
+- Browser compatibility issues
+
+## Browser Compatibility
+
+Tested and supported on:
+- Chrome 80+
+- Firefox 75+
+- Safari 13+
+- Edge 80+
 
 ## Contributing
 
-Contributions are welcome! Please follow these steps:
-
 1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to your branch
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
 ## License
