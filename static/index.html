@@ -402,7 +402,10 @@
                     headers: {
                         "Content-Type": "application/json"
                     },
-                    body: JSON.stringify(transcriptionHistory)
+                    body: JSON.stringify({
+                        history: transcriptionHistory,
+                        language: languageSelect.value
+                    })
                 });
 
                 if (!response.ok) throw new Error("Analysis failed");

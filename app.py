@@ -26,7 +26,13 @@ model = load_model()
 openai_client = init_openai()
 
 @app.post("/analyze-history")
-async def analyze_history(history: list[dict]):
+async def analyze_history(body: dict):
+    history = body.get("history", [])
+    if not history:
+        raise HTTPException(status_code=400, detail="No history provided")
+    
+    language = body.get("language", "en")
+
     try:
         # Format history for GPT
         formatted_history = "\n".join([
@@ -39,7 +45,7 @@ async def analyze_history(history: list[dict]):
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant analyzing transcription history. Provide a brief summary and any key points or patterns you notice. Also, don't include timestamps and other unecessary information."},
-                {"role": "user", "content": f"Please analyze this transcription history:\n\n{formatted_history}"}
+                {"role": "user", "content": f"Please analyze this transcription history in this language({language}):\n\n{formatted_history}"}
             ]
         )
         
