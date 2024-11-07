@@ -27,7 +27,7 @@ A real-time audio transcription application built with FastAPI and WebSockets. I
 
 1. Clone the repository:
 ```sh
-git clone https://github.com/yourusername/live-transcription.git
+git clone https://github.com/zhaxal/live-transcription.git
 cd live-transcription
 ```
 
