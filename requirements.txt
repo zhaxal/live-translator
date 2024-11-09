@@ -9,3 +9,5 @@ openai
 sqlalchemy
 python-multipart
 jinja2
+librosa
+soundfile

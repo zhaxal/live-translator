@@ -13,6 +13,8 @@ import os
 from pydantic import BaseModel, Field, ValidationError
 from typing import Literal
 from pathlib import Path
+import librosa
+import soundfile as sf
 
 from config import LOGGING_CONFIG
 from models import load_model
@@ -280,6 +282,36 @@ def transcribe_audio(audio_data: bytes, language: str = "en") -> str:
     except Exception as e:
         logger.exception("Failed to transcribe audio")
         return ""
+
+def load_audio(file_path: str) -> np.ndarray:
+    """
+    Load audio file and convert to correct format for whisper model.
+    
+    Args:
+        file_path: Path to audio file
+        
+    Returns:
+        np.ndarray: Audio data as float32 numpy array
+    """
+    try:
+        # Load audio file using librosa
+        audio, sr = librosa.load(
+            file_path,
+            sr=16000,  # Whisper expects 16kHz
+            mono=True
+        )
+        
+        # Normalize audio
+        audio = librosa.util.normalize(audio)
+        
+        # Convert to float32
+        audio = audio.astype(np.float32)
+        
+        return audio
+        
+    except Exception as e:
+        logger.exception(f"Failed to load audio file: {file_path}")
+        raise RuntimeError(f"Audio loading failed: {str(e)}")
 
 # Add background task function
 async def process_transcription(job_id: str):
