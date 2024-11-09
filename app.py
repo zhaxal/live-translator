@@ -162,6 +162,18 @@ async def get():
         content = await f.read()
     return HTMLResponse(content)
 
+@app.get("/upload")
+async def get_upload_page():
+    async with aiofiles.open("static/upload.html", mode='r') as f:
+        content = await f.read()
+    return HTMLResponse(content)
+
+@app.get("/status/{job_id}")
+async def get_status_page(job_id: str):
+    async with aiofiles.open("static/status.html", mode='r') as f:
+        content = await f.read()
+    return HTMLResponse(content)
+
 @app.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket,

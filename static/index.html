@@ -5,8 +5,33 @@
     <title>Live Audio Transcription</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="static/css/styles.css">
+    <style>
+        .navigation {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .nav-link {
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+        }
+
+        .nav-link:hover {
+            background-color: var(--transcript-bg);
+        }
+    </style>
 </head>
 <body>
+    <nav class="navigation">
+        <a href="/" class="nav-link">Transcribe Live</a>
+        <a href="/upload" class="nav-link">Upload Files</a>
+    </nav>
     <button class="theme-toggle" id="themeToggle">🌓</button>
     <h1>Live Audio Transcription</h1>
     
