@@ -6,3 +6,5 @@ faster-whisper
 colorlog
 websockets
 openai
+sqlalchemy
+python-multipart

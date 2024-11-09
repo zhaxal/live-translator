@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 import logging.config
@@ -6,10 +6,14 @@ import asyncio
 import numpy as np
 import aiofiles
 from datetime import datetime
+from typing import List
+import uuid
+import os
 
 from config import LOGGING_CONFIG
 from models import load_model
 from llm import init_openai
+from database import SessionLocal, TranscriptionJob, Status
 
 # Configure logging
 logging.config.dictConfig(LOGGING_CONFIG)
@@ -24,6 +28,9 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Initialize models at startup
 model = load_model()
 openai_client = init_openai()
+
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @app.post("/analyze-history")
 async def analyze_history(body: dict):
@@ -66,6 +73,88 @@ async def analyze_history(body: dict):
     except Exception as e:
         logger.exception("Failed to analyze history")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/upload")
+async def upload_files(
+    files: List[UploadFile],
+    language: str,
+    background_tasks: BackgroundTasks
+):
+    job_id = str(uuid.uuid4())
+    db = SessionLocal()
+    
+    try:
+        for file in files:
+            # Save file
+            file_path = os.path.join(UPLOAD_DIR, f"{job_id}_{file.filename}")
+            content = await file.read()
+            with open(file_path, "wb") as f:
+                f.write(content)
+            
+            # Create job record
+            job = TranscriptionJob(
+                job_id=job_id,
+                status=Status.PENDING.value,
+                original_filename=file.filename,
+                output_path=file_path,
+                language=language
+            )
+            db.add(job)
+        
+        db.commit()
+        background_tasks.add_task(process_transcription, job_id)
+        
+        return {"job_id": job_id}
+    finally:
+        db.close()
+
+@app.get("/status/{job_id}/check")
+async def check_status(job_id: str):
+    db = SessionLocal()
+    try:
+        jobs = db.query(TranscriptionJob).filter(
+            TranscriptionJob.job_id == job_id
+        ).all()
+        
+        if not jobs:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        files = []
+        status = Status.COMPLETED.value
+        
+        for job in jobs:
+            if job.status != Status.COMPLETED.value:
+                status = job.status
+                break
+            files.append({
+                "id": job.id,
+                "original_filename": job.original_filename
+            })
+        
+        return {
+            "status": status,
+            "files": files if status == Status.COMPLETED.value else []
+        }
+    finally:
+        db.close()
+
+@app.get("/download/{file_id}")
+async def download_transcription(file_id: int):
+    db = SessionLocal()
+    try:
+        job = db.query(TranscriptionJob).filter(
+            TranscriptionJob.id == file_id
+        ).first()
+        
+        if not job or job.status != Status.COMPLETED.value:
+            raise HTTPException(status_code=404, detail="File not found")
+            
+        return FileResponse(
+            job.output_path,
+            filename=f"{job.original_filename}.txt"
+        )
+    finally:
+        db.close()
 
 @app.get("/")
 async def get():
@@ -130,3 +219,35 @@ def transcribe_audio(audio_data: bytes, language: str = "en") -> str:
     except Exception as e:
         logger.exception("Failed to transcribe audio")
         return ""
+
+# Add background task function
+async def process_transcription(job_id: str):
+    db = SessionLocal()
+    try:
+        jobs = db.query(TranscriptionJob).filter(
+            TranscriptionJob.job_id == job_id
+        ).all()
+        
+        for job in jobs:
+            job.status = Status.PROCESSING.value
+            db.commit()
+            
+            try:
+                # Use existing transcription logic
+                audio = load_audio(job.output_path)
+                transcription = await transcribe_audio(audio, job.language)
+                
+                # Save transcription
+                output_path = f"{job.output_path}.txt"
+                with open(output_path, "w") as f:
+                    f.write(transcription)
+                
+                job.status = Status.COMPLETED.value
+                job.output_path = output_path
+            except Exception as e:
+                logger.exception(f"Transcription failed for {job.original_filename}")
+                job.status = Status.FAILED.value
+            
+            db.commit()
+    finally:
+        db.close()

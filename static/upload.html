@@ -1,0 +1,26 @@
+<!-- static/upload.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Audio Files</title>
+    <link rel="stylesheet" href="static/css/styles.css">
+</head>
+<body>
+    <div class="upload-container">
+        <h1>Upload Audio Files</h1>
+        <form id="uploadForm" class="upload-form">
+            <div class="file-input">
+                <input type="file" id="files" multiple accept="audio/*">
+            </div>
+            <select id="language" name="language">
+                <option value="en">English</option>
+                <!-- Add other language options as in index.html -->
+            </select>
+            <button type="submit" id="uploadButton">Upload Files</button>
+        </form>
+        <div id="status" class="status"></div>
+    </div>
+    <script src="static/js/upload.js"></script>
+</body>
+</html>
