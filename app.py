@@ -9,7 +9,8 @@ from datetime import datetime
 from typing import List
 import uuid
 import os
-from pydantic import BaseModel, constr, ValidationError
+from pydantic import BaseModel, Field, ValidationError
+from typing import Literal
 
 from config import LOGGING_CONFIG
 from models import load_model
@@ -35,7 +36,10 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 # Validation model
 class UploadRequest(BaseModel):
-    language: constr(regex='^(en|es|fr|de|it|pt|nl|pl|ru|ja|ko|zh)$')
+    language: Literal["en", "es", "fr", "de", "it", "pt", "nl", "pl", "ru", "ja", "ko", "zh"] = Field(
+        default="en",
+        description="Language code for transcription"
+    )
 
 # Allowed audio formats
 ALLOWED_AUDIO_TYPES = [
