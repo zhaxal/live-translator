@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, UploadFile, File, BackgroundTasks, Form
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 import logging.config
@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import List
 import uuid
 import os
+from pydantic import BaseModel, constr, ValidationError
 
 from config import LOGGING_CONFIG
 from models import load_model
@@ -31,6 +32,16 @@ openai_client = init_openai()
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# Validation model
+class UploadRequest(BaseModel):
+    language: constr(regex='^(en|es|fr|de|it|pt|nl|pl|ru|ja|ko|zh)$')
+
+# Allowed audio formats
+ALLOWED_AUDIO_TYPES = [
+    'audio/mpeg', 'audio/mp3', 'audio/wav', 
+    'audio/x-wav', 'audio/ogg', 'audio/flac'
+]
 
 @app.post("/analyze-history")
 async def analyze_history(body: dict):
@@ -76,22 +87,44 @@ async def analyze_history(body: dict):
 
 @app.post("/upload")
 async def upload_files(
-    files: List[UploadFile],
-    language: str,
-    background_tasks: BackgroundTasks
+    files: List[UploadFile] = File(...),
+    language: str = Form(...),
+    background_tasks: BackgroundTasks = BackgroundTasks()
 ):
+    # Validate language
+    try:
+        UploadRequest(language=language)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    # Validate files
+    if not files:
+        raise HTTPException(status_code=422, detail="No files provided")
+
+    # Check file types
+    for file in files:
+        content_type = file.content_type
+        if content_type not in ALLOWED_AUDIO_TYPES:
+            raise HTTPException(
+                status_code=422, 
+                detail=f"File {file.filename} has unsupported format. Allowed formats: MP3, WAV, OGG, FLAC"
+            )
+
     job_id = str(uuid.uuid4())
     db = SessionLocal()
     
     try:
         for file in files:
-            # Save file
             file_path = os.path.join(UPLOAD_DIR, f"{job_id}_{file.filename}")
             content = await file.read()
+            
+            # Ensure file is not empty
+            if len(content) == 0:
+                raise HTTPException(status_code=422, detail=f"File {file.filename} is empty")
+                
             with open(file_path, "wb") as f:
                 f.write(content)
             
-            # Create job record
             job = TranscriptionJob(
                 job_id=job_id,
                 status=Status.PENDING.value,
@@ -103,8 +136,14 @@ async def upload_files(
         
         db.commit()
         background_tasks.add_task(process_transcription, job_id)
-        
         return {"job_id": job_id}
+
+    except Exception as e:
+        # Cleanup on error
+        db.rollback()
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
 
