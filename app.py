@@ -1,6 +1,6 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, UploadFile, File, BackgroundTasks, Form, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.templating import Jinja2Templates
 import logging.config
 import asyncio
@@ -201,7 +201,8 @@ async def download_transcription(file_id: int):
             
         return FileResponse(
             job.output_path,
-            filename=f"{job.original_filename}.txt"
+            filename=f"{job.original_filename}.txt",
+            media_type="text/plain"
         )
     finally:
         db.close()
