@@ -259,14 +259,22 @@ async def websocket_endpoint(
         logger.exception(f"Error in WebSocket connection: {e}")
         await websocket.close()
 
-def transcribe_audio(audio_data: bytes, language: str = "en") -> str:
+async def transcribe_audio(audio_data: np.ndarray, language: str = "en") -> str:
+    """
+    Transcribe audio data using Whisper model.
+    
+    Args:
+        audio_data: Audio data as float32 numpy array
+        language: Language code for transcription
+        
+    Returns:
+        str: Transcribed text
+    """
     try:
-        # Convert bytes to numpy array
-        audio_array = np.frombuffer(audio_data, dtype=np.int16).astype(np.float32) / 32768.0
-
-        # Transcribe with optimized parameters
-        segments, _ = model.transcribe(
-            audio_array,
+        # Run transcription in thread pool to avoid blocking
+        segments, _ = await asyncio.to_thread(
+            model.transcribe,
+            audio_data,
             beam_size=5,
             language=language,
             vad_filter=True,
@@ -281,7 +289,7 @@ def transcribe_audio(audio_data: bytes, language: str = "en") -> str:
 
     except Exception as e:
         logger.exception("Failed to transcribe audio")
-        return ""
+        raise RuntimeError(f"Transcription failed: {str(e)}")
 
 def load_audio(file_path: str) -> np.ndarray:
     """
