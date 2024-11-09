@@ -1,6 +1,7 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, UploadFile, File, BackgroundTasks, Form
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, UploadFile, File, BackgroundTasks, Form, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
 import logging.config
 import asyncio
 import numpy as np
@@ -11,6 +12,7 @@ import uuid
 import os
 from pydantic import BaseModel, Field, ValidationError
 from typing import Literal
+from pathlib import Path
 
 from config import LOGGING_CONFIG
 from models import load_model
@@ -24,8 +26,11 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI()
 
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Setup template and static directories
+BASE_DIR = Path(__file__).resolve().parent
+TEMPLATES_DIR = BASE_DIR / "static"
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 # Initialize models at startup
 model = load_model()
@@ -212,10 +217,11 @@ async def get_upload_page():
     return HTMLResponse(content)
 
 @app.get("/status/{job_id}")
-async def get_status_page(job_id: str):
-    async with aiofiles.open("static/status.html", mode='r') as f:
-        content = await f.read()
-    return HTMLResponse(content)
+async def get_status_page(request: Request, job_id: str):
+    return templates.TemplateResponse(
+        "status.html",
+        {"request": request, "job_id": job_id}
+    )
 
 @app.websocket("/ws")
 async def websocket_endpoint(
