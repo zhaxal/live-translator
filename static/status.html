@@ -4,20 +4,32 @@
 <head>
     <meta charset="UTF-8">
     <title>Transcription Status</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="View transcription status and download results">
     <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 <body>
-    <div class="status-container">
+    <nav class="navigation" role="navigation" aria-label="Main navigation">
+        <a href="/" class="nav-link">Transcribe Live</a>
+        <a href="/upload" class="nav-link">Upload Files</a>
+    </nav>
+
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark/light theme">🌓</button>
+
+    <main role="main" class="status-container">
         <h1>Transcription Status</h1>
-        <div id="jobStatus" class="job-status">
-            <div class="status-indicator"></div>
+        
+        <div id="jobStatus" class="job-status" role="status" aria-live="polite">
+            <div class="status-indicator" aria-hidden="true"></div>
             <div class="status-text"></div>
         </div>
+
         <div id="downloadSection" class="download-section" style="display:none">
             <h2>Download Transcriptions</h2>
-            <div id="downloadLinks"></div>
+            <div id="downloadLinks" role="list" aria-label="Download links"></div>
         </div>
-    </div>
+    </main>
+
     <script src="/static/js/status.js"></script>
 </body>
 </html>

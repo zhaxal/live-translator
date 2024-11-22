@@ -46,17 +46,20 @@ if (savedTheme) {
 // UI Functions
 function updateStatus(message) {
   statusDiv.textContent = message;
+  statusDiv.setAttribute('aria-live', 'polite');
 }
 
 function addTranscript(text, timestamp) {
   const entry = document.createElement("div");
   entry.className = "transcript-entry";
+  entry.tabIndex = 0;
+  entry.setAttribute('role', 'listitem');
 
   const time = new Date(timestamp).toLocaleTimeString();
   entry.innerHTML = `
-        <span class="timestamp">${time}</span>
-        <span class="text">${text}</span>
-    `;
+    <span class="timestamp" aria-label="Time">${time}</span>
+    <span class="text">${text}</span>
+  `;
 
   transcriptDiv.appendChild(entry);
   transcriptDiv.scrollTop = transcriptDiv.scrollHeight;
@@ -258,5 +261,26 @@ themeToggle.addEventListener("click", () => {
   const isDark = document.documentElement.getAttribute("data-theme") === "dark";
   setTheme(!isDark);
 });
+
+// Add keyboard support for theme toggle
+themeToggle.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+    setTheme(!isDark);
+  }
+});
+
+// Add loading states for buttons
+function setLoading(button, isLoading) {
+  button.disabled = isLoading;
+  button.setAttribute('aria-busy', isLoading);
+  if (isLoading) {
+    button.dataset.originalText = button.textContent;
+    button.textContent = 'Loading...';
+  } else if (button.dataset.originalText) {
+    button.textContent = button.dataset.originalText;
+  }
+}
 
 window.addEventListener("beforeunload", stopTranscription);

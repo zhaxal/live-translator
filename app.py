@@ -237,17 +237,17 @@ async def websocket_endpoint(
     try:
         while True:
             # Receive audio data
-            audio_data = await websocket.receive_bytes()
+            audio_bytes = await websocket.receive_bytes()
             
-            # Process audio in background
-            transcription = await asyncio.to_thread(
-                transcribe_audio,
-                audio_data,
-                lang
-            )
+            # Convert bytes to numpy array
+            audio_array = np.frombuffer(audio_bytes, dtype=np.int16)
+            audio_float32 = audio_array.astype(np.float32) / 32768.0  # Normalize to [-1, 1]
+            
+            # Process audio
+            transcription = await transcribe_audio(audio_float32, lang)
             
             # Send transcription if not empty
-            if transcription.strip():
+            if transcription and transcription.strip():
                 response = {
                     'text': transcription,
                     'timestamp': datetime.now().isoformat()
@@ -265,7 +265,7 @@ async def transcribe_audio(audio_data: np.ndarray, language: str = "en") -> str:
     Transcribe audio data using Whisper model.
     
     Args:
-        audio_data: Audio data as float32 numpy array
+        audio_data: Audio data as float32 numpy array normalized to [-1, 1]
         language: Language code for transcription
         
     Returns:

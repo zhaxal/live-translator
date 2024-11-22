@@ -5,6 +5,1379 @@ Directory Structure:
     │   ├── css
     │   │   └── styles.css
     │   ├── js
+    │   │   ├── app.js
+    │   │   ├── status.js
+    │   │   └── upload.js
+    │   ├── index.html
+    │   ├── status.html
+    │   └── upload.html
+    ├── .gitignore
+    ├── app.py
+    ├── config.py
+    ├── database.py
+    ├── llm.py
+    ├── models.py
+    ├── README.md
+    ├── requirements.txt
+    └── source_code.txt
+
+
+
+---
+File: /static/css/styles.css
+---
+
+:root {
+  --bg-color: #ffffff;
+  --text-color: #333333;
+  --border-color: #cccccc;
+  --transcript-bg: #f9f9f9;
+  --button-bg: #007bff;
+  --button-disabled: #cccccc;
+}
+
+[data-theme="dark"] {
+  --bg-color: #1a1a1a;
+  --text-color: #ffffff;
+  --border-color: #444444;
+  --transcript-bg: #2d2d2d;
+  --button-bg: #0056b3;
+  --button-disabled: #444444;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  margin: 0 auto;
+  padding: 20px;
+  max-width: 800px;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+h1 {
+  color: var(--text-color);
+  font-size: 1.8em;
+  text-align: center;
+}
+
+#transcript {
+  margin-top: 20px;
+  border: 1px solid var(--border-color);
+  padding: 10px;
+  height: 50vh;
+  overflow-y: scroll;
+  background-color: var(--transcript-bg);
+}
+
+.transcript-entry {
+  margin: 8px 0;
+  padding: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.timestamp {
+  color: var(--text-color);
+  opacity: 0.7;
+  font-size: 0.8em;
+  margin-right: 8px;
+}
+
+.text {
+  color: var(--text-color);
+}
+
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 20px 0;
+  flex-wrap: wrap;
+}
+
+button {
+  padding: 10px 20px;
+  font-size: 1em;
+  cursor: pointer;
+  background-color: var(--button-bg);
+  color: white;
+  border: none;
+  border-radius: 4px;
+}
+
+button:disabled {
+  background-color: var(--button-disabled);
+  cursor: not-allowed;
+}
+
+select {
+  padding: 10px;
+  font-size: 1em;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+.status {
+  text-align: center;
+  margin: 10px 0;
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+.download-btn { background-color: #28a745; }
+.clear-btn { background-color: #dc3545; }
+.analyze-btn { background-color: #6f42c1; }
+
+.history-controls {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+#analysis {
+  margin-top: 20px;
+  padding: 15px;
+  border: 1px solid var(--border-color);
+  background-color: var(--transcript-bg);
+  display: none;
+}
+
+.theme-toggle {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 10px;
+  border-radius: 50%;
+  background-color: var(--button-bg);
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+---
+File: /static/js/app.js
+---
+
+// Constants
+const SAMPLE_RATE = 16000;
+const PROCESSOR_BUFFER_SIZE = 4096;
+const DESIRED_CHUNK_SIZE = SAMPLE_RATE * 3; // 3 seconds
+
+// DOM Elements
+const startButton = document.getElementById("start");
+const stopButton = document.getElementById("stop");
+const downloadButton = document.getElementById("download");
+const clearButton = document.getElementById("clear");
+const analyzeButton = document.getElementById("analyze");
+const languageSelect = document.getElementById("language");
+const transcriptDiv = document.getElementById("transcript");
+const statusDiv = document.getElementById("status");
+const analysisDiv = document.getElementById("analysis");
+const themeToggle = document.getElementById("themeToggle");
+
+// Global Variables
+let audioContext;
+let processor;
+let socket;
+let mediaStream;
+let audioQueue = [];
+let totalQueueLength = 0;
+let transcriptionHistory = [];
+
+// Theme Management
+const prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
+
+function setTheme(isDark) {
+  document.documentElement.setAttribute(
+    "data-theme",
+    isDark ? "dark" : "light"
+  );
+  localStorage.setItem("theme", isDark ? "dark" : "light");
+}
+
+// Initialize theme
+const savedTheme = localStorage.getItem("theme");
+if (savedTheme) {
+  setTheme(savedTheme === "dark");
+} else {
+  setTheme(prefersDark.matches);
+}
+
+// UI Functions
+function updateStatus(message) {
+  statusDiv.textContent = message;
+}
+
+function addTranscript(text, timestamp) {
+  const entry = document.createElement("div");
+  entry.className = "transcript-entry";
+
+  const time = new Date(timestamp).toLocaleTimeString();
+  entry.innerHTML = `
+        <span class="timestamp">${time}</span>
+        <span class="text">${text}</span>
+    `;
+
+  transcriptDiv.appendChild(entry);
+  transcriptDiv.scrollTop = transcriptDiv.scrollHeight;
+
+  // Save to history
+  transcriptionHistory.push({ text, timestamp });
+}
+
+// History Management Functions
+function downloadHistory() {
+  if (transcriptionHistory.length === 0) {
+    updateStatus("No history to download");
+    return;
+  }
+
+  const text = transcriptionHistory
+    .map(
+      (entry) => `[${new Date(entry.timestamp).toLocaleString()}] ${entry.text}`
+    )
+    .join("\n");
+
+  const blob = new Blob([text], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `transcription-history-${new Date()
+    .toISOString()
+    .slice(0, 10)}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function clearHistory() {
+  transcriptionHistory = [];
+  transcriptDiv.innerHTML = "";
+  analysisDiv.style.display = "none";
+  updateStatus("History cleared");
+}
+
+// Analysis Function
+async function analyzeHistory() {
+  if (transcriptionHistory.length === 0) {
+    updateStatus("No history to analyze");
+    return;
+  }
+
+  try {
+    updateStatus("Analyzing history...");
+    const response = await fetch("/analyze-history", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        history: transcriptionHistory,
+        language: languageSelect.value,
+      }),
+    });
+
+    if (!response.ok) throw new Error("Analysis failed");
+
+    const data = await response.json();
+    analysisDiv.style.display = "block";
+    analysisDiv.innerHTML = `<h3>Analysis</h3><p>${data.analysis}</p>`;
+    updateStatus("Analysis complete");
+  } catch (error) {
+    updateStatus("Failed to analyze history: " + error.message);
+  }
+}
+
+// Audio Processing Functions
+async function startTranscription() {
+  try {
+    startButton.disabled = true;
+    stopButton.disabled = false;
+    languageSelect.disabled = true;
+    updateStatus("Initializing...");
+
+    audioContext = new (window.AudioContext || window.webkitAudioContext)({
+      sampleRate: SAMPLE_RATE,
+    });
+
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const source = audioContext.createMediaStreamSource(mediaStream);
+
+    processor = audioContext.createScriptProcessor(PROCESSOR_BUFFER_SIZE, 1, 1);
+
+    const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+    socket = new WebSocket(
+      `${protocol}${window.location.host}/ws?lang=${languageSelect.value}`
+    );
+    socket.binaryType = "arraybuffer";
+
+    socket.addEventListener("open", () => {
+      updateStatus("Connected - Recording...");
+    });
+
+    socket.addEventListener("message", (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        addTranscript(data.text, data.timestamp);
+      } catch (e) {
+        console.error("Failed to parse message:", e);
+      }
+    });
+
+    socket.addEventListener("close", () => {
+      updateStatus("Disconnected");
+    });
+
+    socket.addEventListener("error", (error) => {
+      console.error("WebSocket error:", error);
+      updateStatus("Connection error");
+    });
+
+    processor.onaudioprocess = (event) => {
+      const inputData = event.inputBuffer.getChannelData(0);
+      const int16Data = new Int16Array(inputData.length);
+
+      for (let i = 0; i < inputData.length; i++) {
+        int16Data[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
+      }
+
+      audioQueue.push(int16Data);
+      totalQueueLength += int16Data.length;
+
+      if (totalQueueLength >= DESIRED_CHUNK_SIZE) {
+        const combinedData = new Int16Array(totalQueueLength);
+        let offset = 0;
+
+        for (const chunk of audioQueue) {
+          combinedData.set(chunk, offset);
+          offset += chunk.length;
+        }
+
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(combinedData.buffer);
+        }
+
+        audioQueue = [];
+        totalQueueLength = 0;
+      }
+    };
+
+    source.connect(processor);
+    processor.connect(audioContext.destination);
+  } catch (error) {
+    console.error("Error starting transcription:", error);
+    updateStatus("Error: " + error.message);
+    startButton.disabled = false;
+    stopButton.disabled = true;
+    languageSelect.disabled = false;
+  }
+}
+
+async function stopTranscription() {
+  try {
+    updateStatus("Stopping...");
+
+    if (processor) {
+      processor.disconnect();
+      processor = null;
+    }
+
+    if (audioContext) {
+      await audioContext.close();
+      audioContext = null;
+    }
+
+    if (mediaStream) {
+      mediaStream.getTracks().forEach((track) => track.stop());
+      mediaStream = null;
+    }
+
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.close();
+      socket = null;
+    }
+
+    startButton.disabled = false;
+    stopButton.disabled = true;
+    languageSelect.disabled = false;
+    updateStatus("Stopped");
+  } catch (error) {
+    console.error("Error stopping transcription:", error);
+    updateStatus("Error stopping: " + error.message);
+  }
+}
+
+// Event Listeners
+startButton.addEventListener("click", startTranscription);
+stopButton.addEventListener("click", stopTranscription);
+downloadButton.addEventListener("click", downloadHistory);
+clearButton.addEventListener("click", clearHistory);
+analyzeButton.addEventListener("click", analyzeHistory);
+themeToggle.addEventListener("click", () => {
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  setTheme(!isDark);
+});
+
+window.addEventListener("beforeunload", stopTranscription);
+
+
+
+---
+File: /static/js/status.js
+---
+
+// static/js/status.js
+const jobId = window.location.pathname.split('/').pop();
+const statusIndicator = document.querySelector('.status-indicator');
+const statusText = document.querySelector('.status-text');
+const downloadSection = document.getElementById('downloadSection');
+const downloadLinks = document.getElementById('downloadLinks');
+
+async function checkStatus() {
+    try {
+        const response = await fetch(`/status/${jobId}/check`);
+        const data = await response.json();
+        
+        statusText.textContent = data.status;
+        statusIndicator.className = `status-indicator ${data.status}`;
+
+        if (data.status === 'completed') {
+            downloadSection.style.display = 'block';
+            downloadLinks.innerHTML = data.files.map(file => `
+                <a href="/download/${file.id}" class="download-link">
+                    Download ${file.original_filename}
+                </a>
+            `).join('');
+            return true;
+        } else if (data.status === 'failed') {
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('Status check failed:', error);
+        return false;
+    }
+}
+
+(async function pollStatus() {
+    const done = await checkStatus();
+    if (!done) {
+        setTimeout(pollStatus, 5000);
+    }
+})();
+
+
+---
+File: /static/js/upload.js
+---
+
+// static/js/upload.js
+document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData();
+    const files = document.getElementById('files').files;
+    const language = document.getElementById('language').value;
+    
+    if (files.length === 0) {
+        alert('Please select at least one file');
+        return;
+    }
+
+    Array.from(files).forEach(file => {
+        formData.append('files', file);
+    });
+    formData.append('language', language);
+
+    try {
+        const response = await fetch('/upload', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Upload failed');
+        }
+        
+        const data = await response.json();
+        window.location.href = `/status/${data.job_id}`;
+    } catch (error) {
+        alert(error.message);
+    }
+});
+
+
+---
+File: /static/index.html
+---
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Live Audio Transcription</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="static/css/styles.css">
+    <style>
+        .navigation {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .nav-link {
+            color: var(--text-color);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+        }
+
+        .nav-link:hover {
+            background-color: var(--transcript-bg);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navigation">
+        <a href="/" class="nav-link">Transcribe Live</a>
+        <a href="/upload" class="nav-link">Upload Files</a>
+    </nav>
+    <button class="theme-toggle" id="themeToggle">🌓</button>
+    <h1>Live Audio Transcription</h1>
+    
+    <!-- Main controls (Start/Stop) -->
+    <div class="controls">
+        <select id="language">
+            <option value="en">English</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="it">Italian</option>
+            <option value="pt">Portuguese</option>
+            <option value="nl">Dutch</option>
+            <option value="pl">Polish</option>
+            <option value="ru">Russian</option>
+            <option value="ja">Japanese</option>
+            <option value="ko">Korean</option>
+            <option value="zh">Chinese</option>
+        </select>
+        <button id="start">Start Transcription</button>
+        <button id="stop" disabled>Stop Transcription</button>
+    </div>
+
+    <!-- History controls -->
+    <div class="history-controls">
+        <button id="download" class="download-btn">Download History</button>
+        <button id="analyze" class="analyze-btn">Analyze History</button>
+        <button id="clear" class="clear-btn">Clear History</button>
+    </div>
+
+    <div id="status" class="status"></div>
+    <div id="transcript"></div>
+    <div id="analysis"></div>
+
+    <script src="static/js/app.js"></script>
+</body>
+</html>
+
+
+---
+File: /static/status.html
+---
+
+<!-- static/status.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Transcription Status</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="status-container">
+        <h1>Transcription Status</h1>
+        <div id="jobStatus" class="job-status">
+            <div class="status-indicator"></div>
+            <div class="status-text"></div>
+        </div>
+        <div id="downloadSection" class="download-section" style="display:none">
+            <h2>Download Transcriptions</h2>
+            <div id="downloadLinks"></div>
+        </div>
+    </div>
+    <script src="/static/js/status.js"></script>
+</body>
+</html>
+
+
+---
+File: /static/upload.html
+---
+
+<!-- static/upload.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Audio Files</title>
+    <link rel="stylesheet" href="static/css/styles.css">
+</head>
+<body>
+    <div class="upload-container">
+        <h1>Upload Audio Files</h1>
+        <form id="uploadForm" class="upload-form" enctype="multipart/form-data">
+            <div class="file-input">
+                <input type="file" id="files" name="files" multiple accept="audio/*" required>
+            </div>
+            <select id="language" name="language" required>
+                <option value="en">English</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="it">Italian</option>
+                <option value="pt">Portuguese</option>
+                <option value="nl">Dutch</option>
+                <option value="ru">Russian</option>
+                <option value="ja">Japanese</option>
+            </select>
+            <button type="submit">Upload Files</button>
+        </form>
+        <div id="status" class="status"></div>
+    </div>
+    <script src="static/js/upload.js"></script>
+</body>
+</html>
+
+
+---
+File: /.gitignore
+---
+
+__pycache__
+
+
+---
+File: /app.py
+---
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, UploadFile, File, BackgroundTasks, Form, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.templating import Jinja2Templates
+import logging.config
+import asyncio
+import numpy as np
+import aiofiles
+from datetime import datetime
+from typing import List
+import uuid
+import os
+from pydantic import BaseModel, Field, ValidationError
+from typing import Literal
+from pathlib import Path
+import librosa
+import soundfile as sf
+
+from config import LOGGING_CONFIG
+from models import load_model
+from llm import init_openai
+from database import SessionLocal, TranscriptionJob, Status
+
+# Configure logging
+logging.config.dictConfig(LOGGING_CONFIG)
+logger = logging.getLogger(__name__)
+
+# Initialize FastAPI app
+app = FastAPI()
+
+# Setup template and static directories
+BASE_DIR = Path(__file__).resolve().parent
+TEMPLATES_DIR = BASE_DIR / "static"
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+# Initialize models at startup
+model = load_model()
+openai_client = init_openai()
+
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# Validation model
+class UploadRequest(BaseModel):
+    language: Literal["en", "es", "fr", "de", "it", "pt", "nl", "pl", "ru", "ja", "ko", "zh"] = Field(
+        default="en",
+        description="Language code for transcription"
+    )
+
+# Allowed audio formats
+ALLOWED_AUDIO_TYPES = [
+    'audio/mpeg', 'audio/mp3', 'audio/wav', 
+    'audio/x-wav', 'audio/ogg', 'audio/flac'
+]
+
+@app.post("/analyze-history")
+async def analyze_history(body: dict):
+    history = body.get("history", [])
+    if not history:
+        raise HTTPException(status_code=400, detail="No history provided")
+    
+    language = body.get("language", "en")
+    
+    # Map language codes to full names
+    language_names = {
+        "en": "English",
+        "ja": "Japanese",
+        "es": "Spanish",
+        "fr": "French",
+        "de": "German",
+        "it": "Italian",
+        "pt": "Portuguese",
+        "nl": "Dutch",
+        "pl": "Polish",
+        "ru": "Russian",
+        "ko": "Korean",
+        "zh": "Chinese"
+    }
+
+    try:
+        formatted_history = "\n".join([entry['text'] for entry in history])
+        
+        response = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are analyzing transcribed speech that may have recognition errors. Provide a clear summary and handle unclear words based on context."},
+                {"role": "user", "content": f"Analyze this text and write the summary in {language_names.get(language, 'English')}:\n\n{formatted_history}"}
+            ]
+        )
+        
+        return JSONResponse({
+            "analysis": response.choices[0].message.content
+        })
+    except Exception as e:
+        logger.exception("Failed to analyze history")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/upload")
+async def upload_files(
+    files: List[UploadFile] = File(...),
+    language: str = Form(...),
+    background_tasks: BackgroundTasks = BackgroundTasks()
+):
+    # Validate language
+    try:
+        UploadRequest(language=language)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    # Validate files
+    if not files:
+        raise HTTPException(status_code=422, detail="No files provided")
+
+    # Check file types
+    for file in files:
+        content_type = file.content_type
+        if content_type not in ALLOWED_AUDIO_TYPES:
+            raise HTTPException(
+                status_code=422, 
+                detail=f"File {file.filename} has unsupported format. Allowed formats: MP3, WAV, OGG, FLAC"
+            )
+
+    job_id = str(uuid.uuid4())
+    db = SessionLocal()
+    
+    try:
+        for file in files:
+            file_path = os.path.join(UPLOAD_DIR, f"{job_id}_{file.filename}")
+            content = await file.read()
+            
+            # Ensure file is not empty
+            if len(content) == 0:
+                raise HTTPException(status_code=422, detail=f"File {file.filename} is empty")
+                
+            with open(file_path, "wb") as f:
+                f.write(content)
+            
+            job = TranscriptionJob(
+                job_id=job_id,
+                status=Status.PENDING.value,
+                original_filename=file.filename,
+                output_path=file_path,
+                language=language
+            )
+            db.add(job)
+        
+        db.commit()
+        background_tasks.add_task(process_transcription, job_id)
+        return {"job_id": job_id}
+
+    except Exception as e:
+        # Cleanup on error
+        db.rollback()
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+@app.get("/status/{job_id}/check")
+async def check_status(job_id: str):
+    db = SessionLocal()
+    try:
+        jobs = db.query(TranscriptionJob).filter(
+            TranscriptionJob.job_id == job_id
+        ).all()
+        
+        if not jobs:
+            raise HTTPException(status_code=404, detail="Job not found")
+        
+        files = []
+        status = Status.COMPLETED.value
+        
+        for job in jobs:
+            if job.status != Status.COMPLETED.value:
+                status = job.status
+                break
+            files.append({
+                "id": job.id,
+                "original_filename": job.original_filename
+            })
+        
+        return {
+            "status": status,
+            "files": files if status == Status.COMPLETED.value else []
+        }
+    finally:
+        db.close()
+
+@app.get("/download/{file_id}")
+async def download_transcription(file_id: int):
+    db = SessionLocal()
+    try:
+        job = db.query(TranscriptionJob).filter(
+            TranscriptionJob.id == file_id
+        ).first()
+        
+        if not job or job.status != Status.COMPLETED.value:
+            raise HTTPException(status_code=404, detail="File not found")
+            
+        return FileResponse(
+            job.output_path,
+            filename=f"{job.original_filename}.txt",
+            media_type="text/plain"
+        )
+    finally:
+        db.close()
+
+@app.get("/")
+async def get():
+    async with aiofiles.open("static/index.html", mode='r', encoding="utf-8") as f:
+        content = await f.read()
+    return HTMLResponse(content)
+
+@app.get("/upload")
+async def get_upload_page():
+    async with aiofiles.open("static/upload.html", mode='r') as f:
+        content = await f.read()
+    return HTMLResponse(content)
+
+@app.get("/status/{job_id}")
+async def get_status_page(request: Request, job_id: str):
+    return templates.TemplateResponse(
+        "status.html",
+        {"request": request, "job_id": job_id}
+    )
+
+@app.websocket("/ws")
+async def websocket_endpoint(
+    websocket: WebSocket,
+    lang: str = Query("en")
+):
+    await websocket.accept()
+    logger.info(f"New WebSocket connection established for language: {lang}")
+    
+    try:
+        while True:
+            # Receive audio data
+            audio_data = await websocket.receive_bytes()
+            
+            # Process audio in background
+            transcription = await asyncio.to_thread(
+                transcribe_audio,
+                audio_data,
+                lang
+            )
+            
+            # Send transcription if not empty
+            if transcription.strip():
+                response = {
+                    'text': transcription,
+                    'timestamp': datetime.now().isoformat()
+                }
+                await websocket.send_json(response)
+                
+    except WebSocketDisconnect:
+        logger.info("WebSocket disconnected")
+    except Exception as e:
+        logger.exception(f"Error in WebSocket connection: {e}")
+        await websocket.close()
+
+async def transcribe_audio(audio_data: np.ndarray, language: str = "en") -> str:
+    """
+    Transcribe audio data using Whisper model.
+    
+    Args:
+        audio_data: Audio data as float32 numpy array
+        language: Language code for transcription
+        
+    Returns:
+        str: Transcribed text
+    """
+    try:
+        # Run transcription in thread pool to avoid blocking
+        segments, _ = await asyncio.to_thread(
+            model.transcribe,
+            audio_data,
+            beam_size=5,
+            language=language,
+            vad_filter=True,
+            vad_parameters=dict(min_silence_duration_ms=500)
+        )
+
+        # Combine all segments
+        transcription = " ".join(segment.text for segment in segments if segment.text.strip())
+        logger.info(f"Transcription ({language}): {transcription}")
+        
+        return transcription
+
+    except Exception as e:
+        logger.exception("Failed to transcribe audio")
+        raise RuntimeError(f"Transcription failed: {str(e)}")
+
+def load_audio(file_path: str) -> np.ndarray:
+    """
+    Load audio file and convert to correct format for whisper model.
+    
+    Args:
+        file_path: Path to audio file
+        
+    Returns:
+        np.ndarray: Audio data as float32 numpy array
+    """
+    try:
+        # Load audio file using librosa
+        audio, sr = librosa.load(
+            file_path,
+            sr=16000,  # Whisper expects 16kHz
+            mono=True
+        )
+        
+        # Normalize audio
+        audio = librosa.util.normalize(audio)
+        
+        # Convert to float32
+        audio = audio.astype(np.float32)
+        
+        return audio
+        
+    except Exception as e:
+        logger.exception(f"Failed to load audio file: {file_path}")
+        raise RuntimeError(f"Audio loading failed: {str(e)}")
+
+# Add background task function
+async def process_transcription(job_id: str):
+    db = SessionLocal()
+    try:
+        jobs = db.query(TranscriptionJob).filter(
+            TranscriptionJob.job_id == job_id
+        ).all()
+        
+        for job in jobs:
+            job.status = Status.PROCESSING.value
+            db.commit()
+            
+            try:
+                # Use existing transcription logic
+                audio = load_audio(job.output_path)
+                transcription = await transcribe_audio(audio, job.language)
+                
+                # Save transcription
+                output_path = f"{job.output_path}.txt"
+                with open(output_path, "w") as f:
+                    f.write(transcription)
+                
+                job.status = Status.COMPLETED.value
+                job.output_path = output_path
+            except Exception as e:
+                logger.exception(f"Transcription failed for {job.original_filename}")
+                job.status = Status.FAILED.value
+            
+            db.commit()
+    finally:
+        db.close()
+
+
+---
+File: /config.py
+---
+
+# config.py
+
+import logging
+
+LOGGING_CONFIG = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "()": "colorlog.ColoredFormatter",
+            "format": "%(log_color)s[%(asctime)s] %(levelname)s - %(message)s",
+            "log_colors": {
+                "DEBUG": "cyan",
+                "INFO": "green",
+                "WARNING": "yellow",
+                "ERROR": "red",
+                "CRITICAL": "bold_red",
+            },
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+            "stream": "ext://sys.stdout",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+}
+
+
+
+---
+File: /database.py
+---
+
+# database.py
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Enum
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from datetime import datetime
+import enum
+
+SQLALCHEMY_DATABASE_URL = "sqlite:///./transcription.db"
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+class Status(enum.Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+class TranscriptionJob(Base):
+    __tablename__ = "transcription_jobs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(String, unique=True, index=True)
+    status = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    original_filename = Column(String)
+    output_path = Column(String)
+    language = Column(String)
+
+Base.metadata.create_all(bind=engine)
+
+
+---
+File: /llm.py
+---
+
+from openai import OpenAI
+import logging
+
+logger = logging.getLogger(__name__)
+
+def init_openai():
+    try:
+        client = OpenAI()
+        logger.info("Initialized OpenAI client successfully.")
+        return client
+    except Exception as e:
+        logger.exception("Failed to initialize OpenAI client.")
+        raise e
+
+
+
+---
+File: /models.py
+---
+
+# models.py
+
+import logging
+from faster_whisper import WhisperModel
+
+logger = logging.getLogger(__name__)
+
+def load_model():
+    try:
+        # Use a smaller model for faster transcription
+        model_size = "medium"
+        model = WhisperModel(model_size, device="cuda", compute_type="float16")
+        logger.info(f"Loaded Whisper model '{model_size}' successfully.")
+        return model
+    except Exception as e:
+        logger.exception("Failed to load Whisper model.")
+        raise e
+
+
+
+---
+File: /README.md
+---
+
+# Live Audio Transcription
+
+A real-time audio transcription application built with FastAPI and WebSockets. It captures audio from your microphone, transcribes it using the Whisper model, and provides analysis capabilities using GPT-3.5.
+
+## Features
+
+- Real-time audio transcription in multiple languages
+- Modern, responsive UI with Dark/Light theme support
+- Transcription history management
+  - Download transcription history as text file
+  - Clear history
+  - AI-powered analysis of transcription history using GPT-3.5
+- Support for 12 languages:
+  - English, Spanish, French, German
+  - Italian, Portuguese, Dutch, Polish
+  - Russian, Japanese, Korean, Chinese
+- WebSocket-based communication for low-latency interaction
+- Clean, modular codebase with separated concerns
+
+## Requirements
+
+- Python 3.8+
+- CUDA-capable GPU (recommended for optimal performance)
+- OpenAI API key for analysis features
+
+## Installation
+
+1. Clone the repository:
+```sh
+git clone https://github.com/zhaxal/live-transcription.git
+cd live-transcription
+```
+
+2. Create a virtual environment and activate it:
+```sh
+python -m venv venv
+source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+```
+
+3. Install the required dependencies:
+```sh
+pip install -r requirements.txt
+```
+
+4. Set up your OpenAI API key:
+```sh
+export OPENAI_API_KEY='your-api-key-here'  # Linux/Mac
+set OPENAI_API_KEY=your-api-key-here  # Windows
+```
+
+## Usage
+
+1. Start the FastAPI server:
+```sh
+uvicorn app:app --reload
+```
+
+2. Open your browser and navigate to `http://localhost:8000`
+
+3. Select your desired language from the dropdown menu
+
+4. Click "Start Transcription" to begin capturing and transcribing audio
+
+## Project Structure
+
+```
+└── ./
+    ├── static/
+    │   ├── css/
+    │   │   └── styles.css       # Application styling
+    │   ├── js/
+    │   │   └── app.js          # Frontend JavaScript
+    │   └── index.html          # Main HTML template
+    ├── app.py                  # FastAPI application
+    ├── config.py               # Logging configuration
+    ├── llm.py                  # OpenAI client initialization
+    ├── models.py               # Whisper model setup
+    └── requirements.txt        # Project dependencies
+```
+
+## Component Overview
+
+### Frontend Architecture
+
+#### HTML (`static/index.html`)
+- Semantic HTML5 structure
+- Clean organization of UI components
+- External CSS and JavaScript imports
+
+#### CSS (`static/css/styles.css`)
+- CSS variables for theme management
+- Responsive design
+- Dark/Light theme support
+- Modern UI components styling
+
+#### JavaScript (`static/js/app.js`)
+- Modular code organization
+- WebSocket audio streaming
+- Real-time UI updates
+- Theme management
+- History management
+- Error handling
+
+### Backend Architecture
+
+#### FastAPI Application (`app.py`)
+- WebSocket endpoint for audio streaming
+- Static file serving
+- Analysis endpoint using GPT-3.5
+- Error handling and logging
+
+#### Model Management (`models.py`)
+- Whisper model initialization
+- CUDA acceleration
+- Optimized transcription settings
+
+#### OpenAI Integration (`llm.py`)
+- GPT-3.5 client setup
+- Analysis functionality
+
+## Technical Specifications
+
+### Audio Processing
+- Sample Rate: 16kHz
+- Buffer Size: 4096 samples
+- Chunk Size: 3 seconds
+- Format: 16-bit PCM
+
+### WebSocket Communication
+- Binary audio data streaming
+- JSON response format
+- Automatic reconnection handling
+- Error recovery
+
+### Transcription Settings
+- Model: Whisper Medium
+- Compute Type: float16
+- Device: CUDA (when available)
+- VAD Filter: Enabled (500ms silence threshold)
+
+## Development
+
+### Running in Development Mode
+```sh
+# Install development dependencies
+pip install -r requirements.txt
+
+# Start the development server
+uvicorn app:app --reload --port 8000
+```
+
+### Code Style
+- Follow PEP 8 for Python code
+- Use ES6+ features for JavaScript
+- Maintain consistent indentation (2 spaces)
+- Use meaningful variable and function names
+
+## Error Handling
+
+The application includes comprehensive error handling for:
+- WebSocket connection issues
+- Audio capture problems
+- Transcription failures
+- Analysis errors
+- Browser compatibility issues
+
+## Browser Compatibility
+
+Tested and supported on:
+- Chrome 80+
+- Firefox 75+
+- Safari 13+
+- Edge 80+
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License.
+
+## Acknowledgements
+
+- [FastAPI](https://fastapi.tiangolo.com/)
+- [Whisper](https://github.com/openai/whisper)
+- [faster-whisper](https://github.com/guillaumekln/faster-whisper)
+- [OpenAI](https://openai.com/)
+- [Colorlog](https://github.com/borntyping/python-colorlog)
+
+
+
+---
+File: /requirements.txt
+---
+
+fastapi
+uvicorn
+aiofiles
+numpy
+faster-whisper
+colorlog
+websockets
+openai
+sqlalchemy
+python-multipart
+jinja2
+librosa
+soundfile
+
+
+---
+File: /source_code.txt
+---
+
+Directory Structure:
+
+└── ./
+    ├── static
+    │   ├── css
+    │   │   └── styles.css
+    │   ├── js
     │   │   └── app.js
     │   └── index.html
     ├── .gitignore
@@ -916,3 +2289,4 @@ faster-whisper
 colorlog
 websockets
 openai
+

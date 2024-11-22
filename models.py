@@ -9,7 +9,7 @@ def load_model():
     try:
         # Use a smaller model for faster transcription
         model_size = "medium"
-        model = WhisperModel(model_size, device="cuda", compute_type="float16")
+        model = WhisperModel(model_size, device="cpu", compute_type="int8")
         logger.info(f"Loaded Whisper model '{model_size}' successfully.")
         return model
     except Exception as e:

@@ -4,16 +4,37 @@
 <head>
     <meta charset="UTF-8">
     <title>Upload Audio Files</title>
-    <link rel="stylesheet" href="static/css/styles.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Upload audio files for transcription">
+    <link rel="stylesheet" href="/static/css/styles.css">
 </head>
 <body>
-    <div class="upload-container">
+    <nav class="navigation" role="navigation" aria-label="Main navigation">
+        <a href="/" class="nav-link">Transcribe Live</a>
+        <a href="/upload" class="nav-link" aria-current="page">Upload Files</a>
+    </nav>
+
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark/light theme">🌓</button>
+
+    <main role="main">
         <h1>Upload Audio Files</h1>
-        <form id="uploadForm" class="upload-form" enctype="multipart/form-data">
+        
+        <form id="uploadForm" class="upload-form" enctype="multipart/form-data" role="form" aria-label="Audio upload form">
             <div class="file-input">
-                <input type="file" id="files" name="files" multiple accept="audio/*" required>
+                <label for="files" class="sr-only">Select audio files</label>
+                <input type="file" 
+                       id="files" 
+                       name="files" 
+                       multiple 
+                       accept="audio/*" 
+                       required
+                       aria-required="true"
+                       aria-describedby="fileHint">
+                <span id="fileHint" class="hint-text">Supported formats: MP3, WAV, OGG, FLAC</span>
             </div>
-            <select id="language" name="language" required>
+
+            <label for="language" class="sr-only">Select language</label>
+            <select id="language" name="language" required aria-required="true">
                 <option value="en">English</option>
                 <option value="es">Spanish</option>
                 <option value="fr">French</option>
@@ -24,10 +45,13 @@
                 <option value="ru">Russian</option>
                 <option value="ja">Japanese</option>
             </select>
-            <button type="submit">Upload Files</button>
+
+            <button type="submit" aria-label="Upload files">Upload Files</button>
         </form>
-        <div id="status" class="status"></div>
-    </div>
-    <script src="static/js/upload.js"></script>
+
+        <div id="status" class="status" role="status" aria-live="polite"></div>
+    </main>
+
+    <script src="/static/js/upload.js"></script>
 </body>
 </html>

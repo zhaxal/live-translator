@@ -1,4 +1,5 @@
 :root {
+  /* Light theme variables */
   --bg-color: #ffffff;
   --text-color: #333333;
   --border-color: #cccccc;
@@ -8,6 +9,7 @@
 }
 
 [data-theme="dark"] {
+  /* Dark theme variables */
   --bg-color: #1a1a1a;
   --text-color: #ffffff;
   --border-color: #444444;
@@ -24,6 +26,8 @@ body {
   background-color: var(--bg-color);
   color: var(--text-color);
   transition: background-color 0.3s, color 0.3s;
+  line-height: 1.5;
+  font-size: 16px;
 }
 
 h1 {
@@ -35,10 +39,12 @@ h1 {
 #transcript {
   margin-top: 20px;
   border: 1px solid var(--border-color);
-  padding: 10px;
+  padding: 20px;
   height: 50vh;
   overflow-y: scroll;
   background-color: var(--transcript-bg);
+  line-height: 1.6;
+  font-size: 1.1em;
 }
 
 .transcript-entry {
@@ -67,13 +73,15 @@ h1 {
 }
 
 button {
-  padding: 10px 20px;
+  padding: 12px 20px;
   font-size: 1em;
   cursor: pointer;
   background-color: var(--button-bg);
   color: white;
   border: none;
   border-radius: 4px;
+  min-height: 44px;
+  min-width: 44px;
 }
 
 button:disabled {
@@ -81,13 +89,25 @@ button:disabled {
   cursor: not-allowed;
 }
 
+button:focus {
+  outline: 3px solid var(--button-bg);
+  outline-offset: 2px;
+}
+
 select {
-  padding: 10px;
+  padding: 12px 20px;
   font-size: 1em;
   border-radius: 4px;
   border: 1px solid var(--border-color);
   background-color: var(--bg-color);
   color: var(--text-color);
+  min-height: 44px;
+  min-width: 44px;
+}
+
+select:focus {
+  outline: 3px solid var(--button-bg);
+  outline-offset: 2px;
 }
 
 .status {
@@ -95,6 +115,8 @@ select {
   margin: 10px 0;
   color: var(--text-color);
   opacity: 0.7;
+  padding: 10px;
+  border-radius: 4px;
 }
 
 .download-btn { background-color: #28a745; }
@@ -129,4 +151,171 @@ select {
   display: flex;
   align-items: center;
   justify-content: center;
+  border: none;
+  color: white;
+  transition: background-color 0.3s;
+}
+
+.theme-toggle:hover {
+  background-color: var(--button-hover);
+}
+
+/* Improved focus indicators */
+:focus {
+  outline: 3px solid var(--button-bg);
+  outline-offset: 2px;
+}
+
+/* Skip to main content link */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--button-bg);
+  color: white;
+  padding: 8px;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* Improved focus visibility */
+button:focus, 
+select:focus, 
+a:focus {
+  outline: 3px solid var(--button-bg);
+  outline-offset: 2px;
+}
+
+/* Make clickable areas larger */
+button, 
+select, 
+.nav-link {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 12px 20px;
+}
+
+/* Add visible focus state */
+.nav-link:focus {
+  outline: 3px solid var(--button-bg);
+  outline-offset: 2px;
+}
+
+/* Screen reader only text */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+/* Upload page styles */
+.upload-form {
+    max-width: 500px;
+    margin: 2rem auto;
+    padding: 2rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background-color: var(--transcript-bg);
+}
+
+.file-input {
+    margin-bottom: 1.5rem;
+}
+
+.hint-text {
+    display: block;
+    font-size: 0.9em;
+    color: var(--text-color);
+    opacity: 0.8;
+    margin-top: 0.5rem;
+}
+
+/* Status page styles */
+.status-container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.job-status {
+    margin: 2rem 0;
+    padding: 1rem;
+    border-radius: 8px;
+    background-color: var(--transcript-bg);
+}
+
+.status-indicator {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    margin: 0 auto 1rem;
+}
+
+.status-indicator.pending {
+    background-color: #ffd700;
+}
+
+.status-indicator.processing {
+    background-color: #0088cc;
+    animation: pulse 2s infinite;
+}
+
+.status-indicator.completed {
+    background-color: #28a745;
+}
+
+.status-indicator.failed {
+    background-color: #dc3545;
+}
+
+.download-section {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background-color: var(--transcript-bg);
+}
+
+.download-link {
+    display: block;
+    padding: 1rem;
+    margin: 0.5rem 0;
+    color: var(--text-color);
+    text-decoration: none;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.download-link:hover,
+.download-link:focus {
+    background-color: var(--button-bg);
+    color: white;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* Screen reader only class */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
 }
