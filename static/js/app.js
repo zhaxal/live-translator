@@ -146,9 +146,12 @@ async function startTranscription() {
 
     processor = audioContext.createScriptProcessor(PROCESSOR_BUFFER_SIZE, 1, 1);
 
+    // Update WebSocket connection code
     const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
+    const host = window.location.hostname; // This will get the current host
+    const port = window.location.port; // This will get the current port
     socket = new WebSocket(
-      `${protocol}${window.location.host}/ws?lang=${languageSelect.value}`
+        `${protocol}${host}:${port}/ws?lang=${languageSelect.value}`
     );
     socket.binaryType = "arraybuffer";
 
