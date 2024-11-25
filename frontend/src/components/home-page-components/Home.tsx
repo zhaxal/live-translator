@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useState } from "react";
 import Button from "../Button";
 
@@ -21,31 +22,8 @@ function Home() {
         audio: true,
       });
 
-      const audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
-      const source = audioContext.createMediaStreamSource(mediaStream);
 
-      const processor = audioContext.createScriptProcessor(
-        PROCESSOR_BUFFER_SIZE,
-        1,
-        1
-      );
 
-      let audioBuffer = new Float32Array(0);
-
-      processor.onaudioprocess = (event) => {
-        const inputBuffer = event.inputBuffer.getChannelData(0);
-        const newBuffer = new Float32Array(audioBuffer.length + inputBuffer.length);
-        newBuffer.set(audioBuffer, 0);
-        newBuffer.set(inputBuffer, audioBuffer.length);
-        audioBuffer = newBuffer;
-
-        if (audioBuffer.length >= DESIRED_CHUNK_SIZE) {
-          const chunk = audioBuffer.slice(0, DESIRED_CHUNK_SIZE);
-          audioBuffer = audioBuffer.slice(DESIRED_CHUNK_SIZE);
-
-          // Send chunk to the server
-        }
-      };
     } catch (err) {
       setMicIsOn(false);
       setStatus("idle");
