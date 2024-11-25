@@ -1,8 +1,0 @@
-fastapi
-uvicorn
-aiofiles
-numpy
-faster-whisper
-colorlog
-websockets
-openai
