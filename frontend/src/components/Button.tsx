@@ -3,12 +3,14 @@ import React from "react";
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
   variant?: "primary" | "secondary" | "danger" | "purple" | "warning";
+  ariaLabel?: string;
 }
 
 const Button = ({
   children,
   className,
   variant = "primary",
+  ariaLabel,
   ...props
 }: ButtonProps) => {
   let colorClass = "";
@@ -27,6 +29,7 @@ const Button = ({
   return (
     <button
       className={`${colorClass} text-white font-bold py-2 px-4 rounded ${className}`}
+      aria-label={ariaLabel || (typeof children === 'string' ? children : undefined)}
       {...props}
     >
       {children}

@@ -10,16 +10,34 @@ interface FileItemProps {
 
 const FileItem: React.FC<FileItemProps> = ({ filename, onView, onDownload, onDelete }) => {
   return (
-    <div className="flex items-center justify-between mt-2">
-      <span>{filename}</span>
-      <div>
-        <Button onClick={() => onView(filename)} variant="secondary" className="mr-2">
+    <div 
+      className="flex items-center justify-between mt-2"
+      role="listitem"
+      aria-label={`Transcript file: ${filename}`}
+    >
+      <span id={`filename-${filename}`}>{filename}</span>
+      <div role="group" aria-label={`Actions for ${filename}`}>
+        <Button 
+          onClick={() => onView(filename)} 
+          variant="secondary" 
+          className="mr-2"
+          ariaLabel={`View transcript for ${filename}`}
+        >
           View
         </Button>
-        <Button onClick={() => onDownload(filename)} variant="secondary" className="mr-2">
+        <Button 
+          onClick={() => onDownload(filename)} 
+          variant="secondary" 
+          className="mr-2"
+          ariaLabel={`Download transcript for ${filename}`}
+        >
           Download
         </Button>
-        <Button onClick={() => onDelete(filename)} variant="danger">
+        <Button 
+          onClick={() => onDelete(filename)} 
+          variant="danger"
+          ariaLabel={`Delete transcript for ${filename}`}
+        >
           Delete
         </Button>
       </div>

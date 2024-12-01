@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import Button from "../Button";
 import FileItem from "./FileItem";
 
+import { host } from "../../utils/backend";
+
 function Transcriber() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [transcripts, setTranscripts] = useState<string[]>([]);
@@ -27,7 +29,7 @@ function Transcriber() {
 
   const fetchTranscripts = async () => {
     try {
-      const response = await fetch("http://localhost:8000/transcripts");
+      const response = await fetch(`${host}/transcripts`);
       const data = await response.json();
       setTranscripts(data.transcripts);
     } catch (error) {
@@ -37,9 +39,7 @@ function Transcriber() {
 
   const fetchStatuses = async () => {
     try {
-      const response = await fetch(
-        "http://localhost:8000/transcription-status"
-      );
+      const response = await fetch(`${host}/transcription-status`);
       const data = await response.json();
       setStatuses(data.statuses);
     } catch (error) {
@@ -54,7 +54,7 @@ function Transcriber() {
 
     try {
       setIsUploading(true);
-      const response = await fetch("http://localhost:8000/upload", {
+      const response = await fetch(`${host}/upload`, {
         method: "POST",
         body: formData,
       });
@@ -73,7 +73,7 @@ function Transcriber() {
   const loadTranscript = async (filename: string) => {
     try {
       const response = await fetch(
-        `http://localhost:8000/transcripts/${filename}`
+        `${host}/transcripts/${filename}`
       );
       const text = await response.text();
       setTranscriptContent(text);
@@ -84,14 +84,14 @@ function Transcriber() {
 
   const downloadTranscript = (filename: string) => {
     const link = document.createElement("a");
-    link.href = `http://localhost:8000/transcripts/${filename}`;
+    link.href = `${host}/transcripts/${filename}`;
     link.download = filename;
     link.click();
   };
 
   const deleteTranscript = async (filename: string) => {
     try {
-      await fetch(`http://localhost:8000/transcripts/${filename}`, {
+      await fetch(`${host}/transcripts/${filename}`, {
         method: "DELETE",
       });
       alert("Transcript deleted");
@@ -103,44 +103,67 @@ function Transcriber() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold">File Transcriber</h2>
-      <div className="mt-4">
-        <input
-          type="file"
-          accept=".mp3,.wav,.m4a,.aac"
-          onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-          className="border border-gray-300 p-2"
-          disabled={isUploading}
-        />
-        <Button
-          onClick={uploadFile}
-          className="ml-2"
-          disabled={isUploading || !selectedFile}
-        >
-          {isUploading ? "Uploading..." : "Upload and Transcribe"}
-        </Button>
-        <Button
-          onClick={fetchInitialData}
-          className="ml-2"
-          variant="secondary"
-          disabled={isUploading}
-        >
-          Refetch Data
-        </Button>
+      <div className="mt-4" role="region" aria-labelledby="file-upload-heading">
+        <h2 className="text-2xl font-bold" id="file-upload-heading">
+          File Transcriber
+        </h2>
+        <div className="mt-4">
+          <input
+            type="file"
+            accept=".mp3,.wav,.m4a,.aac"
+            onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+            className="border border-gray-300 p-2"
+            disabled={isUploading}
+            aria-label="Choose audio file to transcribe"
+            role="button"
+          />
+          <Button
+            onClick={uploadFile}
+            className="ml-2"
+            disabled={isUploading || !selectedFile}
+            ariaLabel={
+              isUploading
+                ? "Uploading file..."
+                : "Upload and transcribe selected file"
+            }
+          >
+            {isUploading ? "Uploading..." : "Upload and Transcribe"}
+          </Button>
+          <Button
+            onClick={fetchInitialData}
+            className="ml-2"
+            variant="secondary"
+            disabled={isUploading}
+            ariaLabel="Refresh transcription data"
+          >
+            Refetch Data
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
         <div className="mt-4">Loading...</div>
       ) : (
         <>
-          <div className="mt-4">
-            <h3 className="text-xl font-bold">Transcription Queue Status</h3>
+          <div
+            className="mt-4"
+            role="region"
+            aria-label="Transcription Queue Status"
+          >
+            <h3 className="text-xl font-bold" id="queue-status">
+              Transcription Queue Status
+            </h3>
             {statuses.length === 0 ? (
-              <p>No active transcriptions</p>
+              <p role="status">No active transcriptions</p>
             ) : (
-              <ul>
+              <ul role="list" aria-labelledby="queue-status">
                 {statuses.map((item) => (
-                  <li key={item.id} className="mt-2">
+                  <li
+                    key={item.id}
+                    className="mt-2"
+                    role="status"
+                    aria-label={`${item.filename} status: ${item.status}`}
+                  >
                     <span className="font-semibold">{item.filename}:</span>{" "}
                     {item.status}
                   </li>
@@ -169,12 +192,20 @@ function Transcriber() {
       )}
 
       {transcriptContent && (
-        <div className="mt-4">
-          <h3 className="text-xl font-bold">Transcript Content</h3>
+        <div
+          className="mt-4"
+          role="region"
+          aria-labelledby="transcript-content-heading"
+        >
+          <h3 className="text-xl font-bold" id="transcript-content-heading">
+            Transcript Content
+          </h3>
           <textarea
             className="w-full h-64 mt-2 p-2 border border-gray-300 rounded-md resize-none"
             value={transcriptContent}
             readOnly
+            aria-label="Transcript content"
+            role="textbox"
           />
         </div>
       )}
