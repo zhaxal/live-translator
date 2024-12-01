@@ -24,6 +24,7 @@ import uuid
 import aiofiles
 from logger import setup_logger, get_uvicorn_log_config
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
 
