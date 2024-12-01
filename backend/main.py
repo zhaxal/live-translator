@@ -2,7 +2,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, H
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from models import load_model
-from llm import init_openai
+from database import init_db, add_to_queue, update_status, get_status, get_all_statuses, remove_from_queue
 import uvicorn
 import asyncio
 import numpy as np
@@ -10,10 +10,10 @@ from datetime import datetime
 from pathlib import Path
 import uuid
 import aiofiles
+import os
 
 app = FastAPI()
 model = load_model()
-openai_client = init_openai()
 
 app.add_middleware(
     CORSMiddleware,
@@ -28,8 +28,7 @@ TRANSCRIPT_FOLDER = Path("transcripts")
 UPLOAD_FOLDER.mkdir(exist_ok=True)
 TRANSCRIPT_FOLDER.mkdir(exist_ok=True)
 
-# Global dictionary to track transcription status
-transcription_status = {}
+init_db()  # Initialize the database
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -65,17 +64,20 @@ async def upload_file(file: UploadFile = File(...)):
     file_id = uuid.uuid4().hex
     filename = f"{file_id}_{file.filename}"
     filepath = UPLOAD_FOLDER / filename
+
     async with aiofiles.open(filepath, 'wb') as out_file:
-        content = await file.read()
-        await out_file.write(content)
-    transcription_status[file_id] = "Uploading"
+        while content := await file.read(1024):  # Show upload progress
+            await out_file.write(content)
+
+    add_to_queue(file_id, filename)
+    # Start transcription in background
     asyncio.create_task(transcribe_file(filepath, file_id))
     return {"file_id": file_id}
 
 async def transcribe_file(filepath: Path, file_id: str):
     try:
-        transcription_status[file_id] = "Transcribing"
-        segments, info = await asyncio.to_thread(model.transcribe, str(filepath))
+        update_status(file_id, "Transcribing")
+        segments, _ = await asyncio.to_thread(model.transcribe, str(filepath))
         transcript_text = "\n".join(
             f"[{segment.start:.2f}s -> {segment.end:.2f}s] {segment.text.strip()}"
             for segment in segments
@@ -83,16 +85,16 @@ async def transcribe_file(filepath: Path, file_id: str):
         transcript_path = TRANSCRIPT_FOLDER / f"{filepath.stem}.txt"
         async with aiofiles.open(transcript_path, 'w', encoding='utf-8') as f:
             await f.write(transcript_text)
-        transcription_status[file_id] = "Completed"
+        update_status(file_id, "Completed")
         filepath.unlink()
     except Exception as e:
-        transcription_status[file_id] = f"Error: {str(e)}"
+        update_status(file_id, f"Error: {str(e)}")
         print(f"Error transcribing file {filepath}: {e}")
 
-@app.get("/transcription-status/{file_id}")
-async def get_transcription_status(file_id: str):
-    status = transcription_status.get(file_id, "Not Found")
-    return {"status": status}
+@app.get("/transcription-status")
+async def get_transcription_status():
+    statuses = get_all_statuses()
+    return {"statuses": statuses}
 
 @app.get("/transcripts")
 async def list_transcripts():
@@ -106,22 +108,14 @@ async def get_transcript(filename: str):
         raise HTTPException(status_code=404, detail="Transcript not found")
     return FileResponse(transcript_path)
 
-@app.post("/analyze-history")
-async def analyze_history(history: list):
-    if not history:
-        raise HTTPException(status_code=400, detail="No history provided")
-    try:
-        formatted_history = "\n".join(history)
-        response = await openai_client.ChatCompletion.acreate(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant that analyzes transcribed speech."},
-                {"role": "user", "content": f"Analyze the following text:\n\n{formatted_history}"}
-            ]
-        )
-        return {"analysis": response.choices[0].message.content}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@app.delete("/transcripts/{filename}")
+async def delete_transcript(filename: str):
+    transcript_path = TRANSCRIPT_FOLDER / filename
+    if transcript_path.exists():
+        transcript_path.unlink()
+        return {"detail": "Transcript deleted"}
+    else:
+        raise HTTPException(status_code=404, detail="Transcript not found")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

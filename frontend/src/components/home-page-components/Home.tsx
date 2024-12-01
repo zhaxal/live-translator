@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from "react";
 import Button from "../Button";
-import useWebSocket from "react-use-websocket";
 import { SAMPLE_RATE, PROCESSOR_BUFFER_SIZE, CHUNK_SIZE } from "../../constants";
 
 function Home() {
@@ -12,27 +11,31 @@ function Home() {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const audioQueueRef = useRef<Int16Array[]>([]);
   const totalQueueLengthRef = useRef<number>(0);
+  const websocketRef = useRef<WebSocket | null>(null);
 
-  const { sendMessage, lastJsonMessage, getWebSocket } = useWebSocket<{ text: string }>(
-    "ws://localhost:8000/ws",
-    {
-      share: true,
-      shouldReconnect: () => false,
-    }
-  );
-
-  useEffect(() => {
-    if (lastJsonMessage) {
-      const newText = lastJsonMessage.text;
+  const setupWebSocket = () => {
+    const ws = new WebSocket("ws://localhost:8000/ws");
+    
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      const newText = data.text;
       setTranscript((prev) => prev + newText + "\n");
       setHistory((prev) => [...prev, newText]);
-    }
-  }, [lastJsonMessage]);
+    };
+
+    ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
+    };
+
+    websocketRef.current = ws;
+  };
 
   const startTranscription = async () => {
     if (isTranscribing) return;
 
     try {
+      setupWebSocket();
+      
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
 
@@ -62,7 +65,7 @@ function Home() {
             combinedData.set(chunk, offset);
             offset += chunk.length;
           }
-          sendMessage(combinedData.buffer);
+          websocketRef.current?.send(combinedData.buffer);
           audioQueueRef.current = [];
           totalQueueLengthRef.current = 0;
         }
@@ -84,17 +87,23 @@ function Home() {
     audioContextRef.current?.close();
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
 
+    websocketRef.current?.close();
+    websocketRef.current = null;
+
     processorRef.current = null;
     audioContextRef.current = null;
     mediaStreamRef.current = null;
     audioQueueRef.current = [];
     totalQueueLengthRef.current = 0;
 
-    // Close WebSocket connection
-    getWebSocket()?.close();
-
     setIsTranscribing(false);
   };
+
+  useEffect(() => {
+    return () => {
+      stopTranscription();
+    };
+  }, []);
 
   const downloadHistory = () => {
     if (history.length === 0) return;
@@ -134,7 +143,7 @@ function Home() {
       <Button onClick={downloadHistory} className="ml-2" variant="secondary">
         Download History
       </Button>
-      <Button onClick={analyzeHistory} className="ml-2" variant="secondary">
+      <Button onClick={analyzeHistory} className="ml-2" variant="purple">
         Analyze History
       </Button>
       <textarea

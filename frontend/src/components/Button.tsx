@@ -2,7 +2,7 @@ import React from "react";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
-  variant?: "primary" | "secondary" | "danger";
+  variant?: "primary" | "secondary" | "danger" | "purple";
 }
 
 const Button = ({ children, className, variant = "primary", ...props }: ButtonProps) => {
@@ -13,6 +13,8 @@ const Button = ({ children, className, variant = "primary", ...props }: ButtonPr
     colorClass = "bg-green-500 hover:bg-green-700";
   } else if (variant === "danger") {
     colorClass = "bg-red-500 hover:bg-red-700";
+  } else if (variant === "purple") {
+    colorClass = "bg-purple-500 hover:bg-purple-700";
   }
 
   return (
