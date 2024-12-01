@@ -1,125 +1,146 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import { useEffect, useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Button from "../Button";
-
 import useWebSocket, { ReadyState } from "react-use-websocket";
-
-const SAMPLE_RATE = 16000;
-const PROCESSOR_BUFFER_SIZE = 4096;
-const DESIRED_CHUNK_SIZE = SAMPLE_RATE * 3;
+import { SAMPLE_RATE, PROCESSOR_BUFFER_SIZE, CHUNK_SIZE } from "../../constants";
 
 function Home() {
-  const [micIsOn, setMicIsOn] = useState(false);
-  const [mediaStream, setStream] = useState<MediaStream | null>(null);
-  const [status, setStatus] = useState("idle");
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const [history, setHistory] = useState<string[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const audioQueueRef = useRef<Int16Array[]>([]);
+  const totalQueueLengthRef = useRef<number>(0);
 
-  // const [audioQueue, setAudioQueue] = useState<Int16Array[]>([]);
-  // const [totalQueueLength, setTotalQueueLength] = useState(0);
+  const { sendMessage, lastJsonMessage, readyState } = useWebSocket<{ text: string }>(
+    "ws://localhost:8000/ws",
+    {
+      share: true,
+      onMessage: () => {},
+      shouldReconnect: () => true,
+    }
+  );
 
-  const { sendMessage, readyState } = useWebSocket("ws://localhost:8000/ws", {
-    share: true,
-  });
+  useEffect(() => {
+    if (lastJsonMessage) {
+      const newText = lastJsonMessage.text;
+      setTranscript((prev) => prev + newText + "\n");
+      setHistory((prev) => [...prev, newText]);
+    }
+  }, [lastJsonMessage]);
 
   const startTranscription = async () => {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      console.log("getUserMedia is not supported");
-      return;
-    }
+    if (isTranscribing) return;
 
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+
+      const audioContext = new window.AudioContext({
+        sampleRate: SAMPLE_RATE,
       });
+      audioContextRef.current = audioContext;
 
-      const audioContext = new AudioContext({ sampleRate: SAMPLE_RATE });
-      const source = audioContext.createMediaStreamSource(mediaStream);
-
-      const processor = audioContext.createScriptProcessor(
-        PROCESSOR_BUFFER_SIZE,
-        1,
-        1
-      );
-
-      let audioQueue: Int16Array[] = [];
-      let totalQueueLength = 0;
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(PROCESSOR_BUFFER_SIZE, 1, 1);
+      processorRef.current = processor;
 
       processor.onaudioprocess = (event) => {
         const inputData = event.inputBuffer.getChannelData(0);
         const int16Data = new Int16Array(inputData.length);
-
         for (let i = 0; i < inputData.length; i++) {
           int16Data[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
         }
 
-        audioQueue.push(int16Data);
-        totalQueueLength += int16Data.length;
+        audioQueueRef.current.push(int16Data);
+        totalQueueLengthRef.current += int16Data.length;
 
-        if (totalQueueLength >= DESIRED_CHUNK_SIZE) {
-          const data = new Int16Array(totalQueueLength);
+        if (totalQueueLengthRef.current >= CHUNK_SIZE) {
+          const combinedData = new Int16Array(totalQueueLengthRef.current);
           let offset = 0;
-
-          for (const chunk of audioQueue) {
-            data.set(chunk, offset);
+          for (const chunk of audioQueueRef.current) {
+            combinedData.set(chunk, offset);
             offset += chunk.length;
           }
-
-          sendMessage(data.buffer);
-
-          audioQueue = [];
-          totalQueueLength = 0;
+          sendMessage(combinedData.buffer);
+          audioQueueRef.current = [];
+          totalQueueLengthRef.current = 0;
         }
       };
 
       source.connect(processor);
       processor.connect(audioContext.destination);
 
-      setMicIsOn(true);
-
-      setStatus("transcribing");
-
-      console.log("Listening for audio");
-    } catch (err) {
-      setMicIsOn(false);
-      setStatus("idle");
-      console.error(err);
-    } finally {
-      setStream(mediaStream);
+      setIsTranscribing(true);
+    } catch (error) {
+      console.error("Error starting transcription:", error);
     }
   };
 
   const stopTranscription = () => {
-    mediaStream?.getTracks().forEach((track) => track.stop());
-    setMicIsOn(!micIsOn);
-    setStatus("idle");
+    if (!isTranscribing) return;
+
+    processorRef.current?.disconnect();
+    audioContextRef.current?.close();
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+
+    processorRef.current = null;
+    audioContextRef.current = null;
+    mediaStreamRef.current = null;
+    audioQueueRef.current = [];
+    totalQueueLengthRef.current = 0;
+
+    setIsTranscribing(false);
   };
 
-  const toggleTranscription = () => {
-    if (micIsOn) {
-      stopTranscription();
-    } else {
-      startTranscription();
+  const downloadHistory = () => {
+    if (history.length === 0) return;
+    const content = history.join("\n");
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `transcription_history_${new Date().toISOString()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const analyzeHistory = async () => {
+    if (history.length === 0) return;
+    try {
+      const response = await fetch("http://localhost:8000/analyze-history", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(history),
+      });
+      const data = await response.json();
+      alert(`Analysis:\n${data.analysis}`);
+    } catch (error) {
+      console.error("Error analyzing history:", error);
     }
   };
 
   return (
-    <>
-      <Button onClick={toggleTranscription}>
-        {micIsOn ? "Stop transcription" : "Start transcription"}
+    <div>
+      <Button onClick={isTranscribing ? stopTranscription : startTranscription}>
+        {isTranscribing ? "Stop Transcription" : "Start Transcription"}
       </Button>
-
+      <Button onClick={downloadHistory} className="ml-2">
+        Download History
+      </Button>
+      <Button onClick={analyzeHistory} className="ml-2">
+        Analyze History
+      </Button>
       <p className="mt-4">
-        Status: {status}
-        <br />
-        WebSocket status: {ReadyState[readyState]}
+        WebSocket Status: {ReadyState[readyState]}
       </p>
-
       <textarea
-        placeholder="Translation will appear here"
         className="w-full h-64 mt-4 p-2 border border-gray-300 rounded-md resize-none"
-        disabled
+        value={transcript}
         readOnly
-      ></textarea>
-    </>
+      />
+    </div>
   );
 }
 

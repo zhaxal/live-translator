@@ -1,4 +1,7 @@
-faster-whisper
-websockets
 fastapi
+uvicorn
+aiofiles
 numpy
+faster-whisper
+openai
+python-multipart
