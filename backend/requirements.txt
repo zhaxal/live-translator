@@ -4,3 +4,6 @@ aiofiles
 numpy
 faster-whisper
 python-multipart
+torch
+structlog
+python-dotenv

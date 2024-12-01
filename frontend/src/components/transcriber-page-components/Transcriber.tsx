@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from "react";
 import Button from "../Button";
@@ -36,7 +37,9 @@ function Transcriber() {
 
   const fetchStatuses = async () => {
     try {
-      const response = await fetch("http://localhost:8000/transcription-status");
+      const response = await fetch(
+        "http://localhost:8000/transcription-status"
+      );
       const data = await response.json();
       setStatuses(data.statuses);
     } catch (error) {
@@ -69,7 +72,9 @@ function Transcriber() {
 
   const loadTranscript = async (filename: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/transcripts/${filename}`);
+      const response = await fetch(
+        `http://localhost:8000/transcripts/${filename}`
+      );
       const text = await response.text();
       setTranscriptContent(text);
     } catch (error) {
@@ -96,11 +101,6 @@ function Transcriber() {
     }
   };
 
-  const refetchData = () => {
-    fetchTranscripts();
-    fetchStatuses();
-  };
-
   return (
     <div>
       <h2 className="text-2xl font-bold">File Transcriber</h2>
@@ -112,16 +112,16 @@ function Transcriber() {
           className="border border-gray-300 p-2"
           disabled={isUploading}
         />
-        <Button 
-          onClick={uploadFile} 
+        <Button
+          onClick={uploadFile}
           className="ml-2"
           disabled={isUploading || !selectedFile}
         >
           {isUploading ? "Uploading..." : "Upload and Transcribe"}
         </Button>
-        <Button 
-          onClick={fetchInitialData} 
-          className="ml-2" 
+        <Button
+          onClick={fetchInitialData}
+          className="ml-2"
           variant="secondary"
           disabled={isUploading}
         >
@@ -141,7 +141,8 @@ function Transcriber() {
               <ul>
                 {statuses.map((item) => (
                   <li key={item.id} className="mt-2">
-                    <span className="font-semibold">{item.filename}:</span> {item.status}
+                    <span className="font-semibold">{item.filename}:</span>{" "}
+                    {item.status}
                   </li>
                 ))}
               </ul>

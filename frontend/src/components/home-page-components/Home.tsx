@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import Button from "../Button";
 import { SAMPLE_RATE, PROCESSOR_BUFFER_SIZE, CHUNK_SIZE } from "../../constants";
+import { host, wsHost } from "../../utils/backend";
 
 function Home() {
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -14,7 +15,7 @@ function Home() {
   const websocketRef = useRef<WebSocket | null>(null);
 
   const setupWebSocket = () => {
-    const ws = new WebSocket("ws://localhost:8000/ws");
+    const ws = new WebSocket(`${wsHost}/ws`);
     
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
@@ -120,7 +121,7 @@ function Home() {
   const analyzeHistory = async () => {
     if (history.length === 0) return;
     try {
-      const response = await fetch("http://localhost:8000/analyze-history", {
+      const response = await fetch(`${host}/analyze-history`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(history),
@@ -129,6 +130,14 @@ function Home() {
       alert(`Analysis:\n${data.analysis}`);
     } catch (error) {
       console.error("Error analyzing history:", error);
+    }
+  };
+
+  const clearHistory = () => {
+    if (history.length === 0) return;
+    if (window.confirm("Are you sure you want to clear the transcription history?")) {
+      setTranscript("");
+      setHistory([]);
     }
   };
 
@@ -145,6 +154,9 @@ function Home() {
       </Button>
       <Button onClick={analyzeHistory} className="ml-2" variant="purple">
         Analyze History
+      </Button>
+      <Button onClick={clearHistory} className="ml-2" variant="warning">
+        Clear History
       </Button>
       <textarea
         className="w-full h-64 mt-4 p-2 border border-gray-300 rounded-md resize-none"
