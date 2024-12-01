@@ -28,6 +28,9 @@ TRANSCRIPT_FOLDER = Path("transcripts")
 UPLOAD_FOLDER.mkdir(exist_ok=True)
 TRANSCRIPT_FOLDER.mkdir(exist_ok=True)
 
+# Global dictionary to track transcription status
+transcription_status = {}
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -42,7 +45,9 @@ async def websocket_endpoint(websocket: WebSocket):
                 }
                 await websocket.send_json(response)
     except WebSocketDisconnect:
-        pass
+        print("WebSocket disconnected")
+    except Exception as e:
+        print(f"Error: {e}")
 
 def transcribe_audio(audio_data: bytes) -> str:
     try:
@@ -57,17 +62,20 @@ def transcribe_audio(audio_data: bytes) -> str:
 async def upload_file(file: UploadFile = File(...)):
     if file.content_type not in ["audio/mpeg", "audio/wav", "audio/x-m4a", "audio/aac"]:
         raise HTTPException(status_code=400, detail="Invalid file type")
-    filename = f"{uuid.uuid4().hex}_{file.filename}"
+    file_id = uuid.uuid4().hex
+    filename = f"{file_id}_{file.filename}"
     filepath = UPLOAD_FOLDER / filename
     async with aiofiles.open(filepath, 'wb') as out_file:
         content = await file.read()
         await out_file.write(content)
-    asyncio.create_task(transcribe_file(filepath))
-    return {"filename": filename}
+    transcription_status[file_id] = "Uploading"
+    asyncio.create_task(transcribe_file(filepath, file_id))
+    return {"file_id": file_id}
 
-async def transcribe_file(filepath: Path):
+async def transcribe_file(filepath: Path, file_id: str):
     try:
-        segments, info = model.transcribe(str(filepath))
+        transcription_status[file_id] = "Transcribing"
+        segments, info = await asyncio.to_thread(model.transcribe, str(filepath))
         transcript_text = "\n".join(
             f"[{segment.start:.2f}s -> {segment.end:.2f}s] {segment.text.strip()}"
             for segment in segments
@@ -75,9 +83,16 @@ async def transcribe_file(filepath: Path):
         transcript_path = TRANSCRIPT_FOLDER / f"{filepath.stem}.txt"
         async with aiofiles.open(transcript_path, 'w', encoding='utf-8') as f:
             await f.write(transcript_text)
+        transcription_status[file_id] = "Completed"
         filepath.unlink()
     except Exception as e:
+        transcription_status[file_id] = f"Error: {str(e)}"
         print(f"Error transcribing file {filepath}: {e}")
+
+@app.get("/transcription-status/{file_id}")
+async def get_transcription_status(file_id: str):
+    status = transcription_status.get(file_id, "Not Found")
+    return {"status": status}
 
 @app.get("/transcripts")
 async def list_transcripts():

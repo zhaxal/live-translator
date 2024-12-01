@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import Button from "../Button";
-import useWebSocket, { ReadyState } from "react-use-websocket";
+import useWebSocket from "react-use-websocket";
 import { SAMPLE_RATE, PROCESSOR_BUFFER_SIZE, CHUNK_SIZE } from "../../constants";
 
 function Home() {
@@ -13,12 +13,11 @@ function Home() {
   const audioQueueRef = useRef<Int16Array[]>([]);
   const totalQueueLengthRef = useRef<number>(0);
 
-  const { sendMessage, lastJsonMessage, readyState } = useWebSocket<{ text: string }>(
+  const { sendMessage, lastJsonMessage, getWebSocket } = useWebSocket<{ text: string }>(
     "ws://localhost:8000/ws",
     {
       share: true,
-      onMessage: () => {},
-      shouldReconnect: () => true,
+      shouldReconnect: () => false,
     }
   );
 
@@ -91,6 +90,9 @@ function Home() {
     audioQueueRef.current = [];
     totalQueueLengthRef.current = 0;
 
+    // Close WebSocket connection
+    getWebSocket()?.close();
+
     setIsTranscribing(false);
   };
 
@@ -123,18 +125,18 @@ function Home() {
 
   return (
     <div>
-      <Button onClick={isTranscribing ? stopTranscription : startTranscription}>
+      <Button
+        onClick={isTranscribing ? stopTranscription : startTranscription}
+        variant={isTranscribing ? "danger" : "primary"}
+      >
         {isTranscribing ? "Stop Transcription" : "Start Transcription"}
       </Button>
-      <Button onClick={downloadHistory} className="ml-2">
+      <Button onClick={downloadHistory} className="ml-2" variant="secondary">
         Download History
       </Button>
-      <Button onClick={analyzeHistory} className="ml-2">
+      <Button onClick={analyzeHistory} className="ml-2" variant="secondary">
         Analyze History
       </Button>
-      <p className="mt-4">
-        WebSocket Status: {ReadyState[readyState]}
-      </p>
       <textarea
         className="w-full h-64 mt-4 p-2 border border-gray-300 rounded-md resize-none"
         value={transcript}
