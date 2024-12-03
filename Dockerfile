@@ -19,15 +19,23 @@ COPY backend/ .
 # Final stage
 FROM python:3.10-slim
 WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    nginx \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Python packages from builder
+COPY --from=backend-builder /usr/local/lib/python3.10/site-packages/ /usr/local/lib/python3.10/site-packages/
 COPY --from=backend-builder /app/backend /app/backend
 COPY --from=frontend-builder /app/frontend/dist /app/frontend
-COPY --from=frontend-builder /usr/local/lib/node_modules /usr/local/lib/node_modules
-
-# Install nginx
-RUN apt-get update && apt-get install -y nginx
 
 # Copy nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Create required directories
+RUN mkdir -p /app/backend/uploads /app/backend/transcripts
 
 EXPOSE 80
 CMD ["sh", "-c", "nginx && cd backend && python main.py"]
