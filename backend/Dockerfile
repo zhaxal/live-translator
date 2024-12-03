@@ -7,15 +7,21 @@ WORKDIR /app
 # Prevent interactive prompts during installation
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies
+# Install system dependencies including Rust prerequisites
 RUN apt-get update && apt-get install -y \
     python3.10 \
     python3-pip \
     ffmpeg \
     tzdata \
+    curl \
+    build-essential \
     && ln -fs /usr/share/zoneinfo/Etc/UTC /etc/localtime \
     && dpkg-reconfigure -f noninteractive tzdata \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Set CUDA and cuDNN environment variables
 ENV PATH="/usr/local/cuda/bin:${PATH}"
