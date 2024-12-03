@@ -4,11 +4,17 @@ FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu20.04
 # Set working directory
 WORKDIR /app
 
+# Prevent interactive prompts during installation
+ENV DEBIAN_FRONTEND=noninteractive
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     python3.10 \
     python3-pip \
     ffmpeg \
+    tzdata \
+    && ln -fs /usr/share/zoneinfo/Etc/UTC /etc/localtime \
+    && dpkg-reconfigure -f noninteractive tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Set CUDA and cuDNN environment variables
