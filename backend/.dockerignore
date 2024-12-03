@@ -1,0 +1,5 @@
+__pycache__
+uploads
+transcripts
+transcription_queue.db
+logs
