@@ -1,5 +1,5 @@
 # Use newer CUDA base image with cuDNN
-FROM nvidia/cuda:12.3.1-cudnn9-runtime-ubuntu22.04
+FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu20.04
 
 # Set working directory
 WORKDIR /app
