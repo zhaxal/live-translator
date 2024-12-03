@@ -24,6 +24,14 @@ services:
     ports:
       - "8000:8000"
     restart: always
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
 
 networks:
   default:
