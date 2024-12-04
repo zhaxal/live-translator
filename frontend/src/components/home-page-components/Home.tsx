@@ -13,6 +13,7 @@ function Home() {
   const audioQueueRef = useRef<Int16Array[]>([]);
   const totalQueueLengthRef = useRef<number>(0);
   const websocketRef = useRef<WebSocket | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const setupWebSocket = () => {
     const ws = new WebSocket(`${wsHost}/ws`);
@@ -106,6 +107,12 @@ function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+    }
+  }, [transcript]);
+
   const downloadHistory = () => {
     if (history.length === 0) return;
     const content = history.join("\n");
@@ -142,26 +149,48 @@ function Home() {
   };
 
   return (
-    <div>
-      <Button
-        onClick={isTranscribing ? stopTranscription : startTranscription}
-        variant={isTranscribing ? "danger" : "primary"}
-      >
-        {isTranscribing ? "Stop Transcription" : "Start Transcription"}
-      </Button>
-      <Button onClick={downloadHistory} className="ml-2" variant="secondary">
-        Download History
-      </Button>
-      <Button onClick={analyzeHistory} className="ml-2" variant="purple">
-        Analyze History
-      </Button>
-      <Button onClick={clearHistory} className="ml-2" variant="warning">
-        Clear History
-      </Button>
+    <div className="px-4 md:px-6 py-4">
+      <div className="flex flex-col md:flex-row gap-2 md:gap-4">
+        <Button
+          onClick={isTranscribing ? stopTranscription : startTranscription}
+          variant={isTranscribing ? "danger" : "primary"}
+          fullWidth
+          className="min-h-[44px]"
+        >
+          {isTranscribing ? "Stop Transcription" : "Start Transcription"}
+        </Button>
+        <Button 
+          onClick={downloadHistory} 
+          variant="secondary"
+          fullWidth
+          className="min-h-[44px]"
+        >
+          Download History
+        </Button>
+        <Button 
+          onClick={analyzeHistory} 
+          variant="purple"
+          fullWidth
+          className="min-h-[44px]"
+        >
+          Analyze History
+        </Button>
+        <Button 
+          onClick={clearHistory} 
+          variant="warning"
+          fullWidth
+          className="min-h-[44px]"
+        >
+          Clear History
+        </Button>
+      </div>
+
       <textarea
-        className="w-full h-64 mt-4 p-2 border border-gray-300 rounded-md resize-none"
+        ref={textareaRef}
+        className="w-full h-48 md:h-64 mt-4 md:mt-6 p-3 border border-gray-300 rounded-md resize-none text-sm md:text-base scroll-smooth"
         value={transcript}
         readOnly
+        aria-label="Transcription output"
       />
     </div>
   );
