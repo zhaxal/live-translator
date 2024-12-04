@@ -1,64 +1,47 @@
-# Use the specified NVIDIA CUDA base image
-FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu20.04
-
-# Prevent interactive prompts during package installation
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Set environment variables for Python
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-# Set the timezone to UTC (you can change this if needed)
-ENV TZ=UTC
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3.8 \
-    python3-pip \
-    build-essential \
-    ffmpeg \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    tzdata \
-    && ln -fs /usr/share/zoneinfo/$TZ /etc/localtime \
-    && dpkg-reconfigure --frontend noninteractive tzdata \
-    && rm -rf /var/lib/apt/lists/*
-
-# Ensure python3 and pip3 point to the correct versions
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1 \
-    && update-alternatives --install /usr/bin/pip3 pip3 /usr/bin/pip3 1
+FROM nvidia/cuda:12.6.2-cudnn-runtime-ubuntu24.04
 
 # Set working directory
 WORKDIR /app
 
-# Copy requirements first for better caching
-COPY requirements.txt /app/
+# Install system dependencies
+# hadolint ignore=DL3008
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    python3.12 \
+    ffmpeg && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-RUN pip3 install --upgrade pip
-RUN pip3 install --no-cache-dir -r requirements.txt
+# Install UV package manager
+COPY --from=ghcr.io/astral-sh/uv:0.5.1 /uv /bin/uv
 
-# Install PyTorch separately to ensure CUDA compatibility
-RUN pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+# Set CUDA and cuDNN environment variables
+ENV PATH="/usr/local/cuda/bin:${PATH}"
+ENV LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH}"
+ENV CUDA_HOME="/usr/local/cuda"
+ENV CUDNN_PATH="/usr/lib/x86_64-linux-gnu/libcudnn.so"
 
-# Copy the rest of the application code
-COPY . /app/
+# Copy dependency files
+COPY requirements.txt pyproject.toml uv.lock ./
+
+# Install dependencies using UV
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen
+
+# Copy application code
+COPY . .
 
 # Create necessary directories
-RUN mkdir -p uploads transcripts logs
+RUN mkdir -p uploads transcripts
 
-# Expose port
+# Set environment variables
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
+ENV UVICORN_HOST=0.0.0.0
+ENV UVICORN_PORT=8000
+
+# Expose the port
 EXPOSE 8000
 
-# Use non-root user for security
-RUN useradd -m appuser
-RUN chown -R appuser:appuser /app
-USER appuser
-
-
-RUN chown -R appuser:appuser /app
-USER appuser
-
-# Default command
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application
+CMD ["python3", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
