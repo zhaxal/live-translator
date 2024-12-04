@@ -24,14 +24,17 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1 
 WORKDIR /app
 
 # Copy requirements first for better caching
-COPY backend/requirements.txt /app/
+COPY requirements.txt /app/
 
 # Install Python dependencies
 RUN pip3 install --upgrade pip
 RUN pip3 install --no-cache-dir -r requirements.txt
 
+# Install PyTorch separately to ensure CUDA compatibility
+RUN pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+
 # Copy the rest of the application code
-COPY backend/ /app/
+COPY . /app/
 
 # Create necessary directories
 RUN mkdir -p uploads transcripts logs
