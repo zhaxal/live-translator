@@ -1,9 +1,15 @@
 # Use the specified NVIDIA CUDA base image
 FROM nvidia/cuda:12.6.3-cudnn-runtime-ubuntu20.04
 
-# Set environment variables
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Set environment variables for Python
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+
+# Set the timezone to UTC (you can change this if needed)
+ENV TZ=UTC
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -14,6 +20,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
+    tzdata \
+    && ln -fs /usr/share/zoneinfo/$TZ /etc/localtime \
+    && dpkg-reconfigure --frontend noninteractive tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Ensure python3 and pip3 point to the correct versions
@@ -44,6 +53,10 @@ EXPOSE 8000
 
 # Use non-root user for security
 RUN useradd -m appuser
+RUN chown -R appuser:appuser /app
+USER appuser
+
+
 RUN chown -R appuser:appuser /app
 USER appuser
 
